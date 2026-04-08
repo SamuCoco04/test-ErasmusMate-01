@@ -33,6 +33,8 @@ export const socialMenus: Record<Role, NavItem[]> = {
     { label: "Discover", href: "/discover", section: "social" },
     { label: "Connections", href: "/connections", section: "social" },
     { label: "Messages", href: "/messages", section: "social" },
+    { label: "Recommendations", href: "/recommendations", section: "social" },
+    { label: "Profile", href: "/profile", section: "social" },
   ],
   Coordinator: [{ label: "Discover", href: "/discover", section: "social" }],
   Administrator: [{ label: "Discover", href: "/discover", section: "social" }],
