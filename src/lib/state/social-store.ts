@@ -2,48 +2,83 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-import {
-  messageThreads,
-  socialConnections,
-  socialProfiles,
-  socialRecommendations,
-  type ConnectionState,
-  type MessageThread,
-  type RecommendationItem,
-  type SocialConnection,
-  type SocialProfile,
-} from "@/lib/mock/social-support";
+import { messageThreads, socialConnections, socialProfiles, type ConnectionState } from "@/lib/mock/social-support";
 
-type ActionOutcome = "success" | "blocked";
+const STORAGE_KEY = "erasmusmate.social-store.v1";
+const ACTOR_PROFILE_ID = "ME-STUDENT";
 
-type SocialAuditEntry = {
+export type ReportTargetType = "social_profile" | "message" | "recommendation" | "opinion" | "social_interaction";
+
+export type SocialConnectionDirection = "incoming" | "outgoing";
+
+export type SocialStoreConnection = {
   id: string;
-  actorId: string;
-  action: string;
+  peerProfileId: string;
+  peerName: string;
+  state: ConnectionState;
+  direction: SocialConnectionDirection;
+  initiatedAt: string;
+  respondedAt?: string;
+  blockedReason?: string;
+};
+
+export type SocialStoreThread = {
+  id: string;
+  withProfileId: string;
+  withUser: string;
+  lastMessage: string;
+  updatedAt: string;
+};
+
+export type SocialModerationReport = {
+  id: string;
+  reporterProfileId: string;
+  targetType: ReportTargetType;
   targetId: string;
-  outcome: ActionOutcome;
-  details: string;
-  timestamp: string;
+  reason: string;
+  reportedAt: string;
 };
 
 export type SocialStoreState = {
-  profiles: SocialProfile[];
-  connections: SocialConnection[];
-  messageThreads: MessageThread[];
-  recommendations: RecommendationItem[];
-  mapReports: Array<{ id: string; mapPinId: string; reason: string; status: "reported" }>;
-  auditLog: SocialAuditEntry[];
+  actorProfileId: string;
+  connections: SocialStoreConnection[];
+  threads: SocialStoreThread[];
+  moderationReports: SocialModerationReport[];
 };
 
-const STORAGE_KEY = "erasmusmate.social-store.v1";
+const profileIdByName = Object.fromEntries(socialProfiles.map((profile) => [profile.name, profile.id]));
+
+const toIso = (ts: string) => ts.replace(" ", "T");
+
+const toProfileId = (name: string) => profileIdByName[name] ?? `PROFILE-${name.replace(/ /g, "-")}`;
+
+const defaultDirectionByConnectionId: Record<string, SocialConnectionDirection> = {
+  "CON-1": "incoming",
+  "CON-2": "outgoing",
+  "CON-3": "incoming",
+  "CON-4": "outgoing",
+  "CON-5": "incoming",
+  "CON-6": "incoming",
+  "CON-7": "outgoing",
+};
 
 const initialState: SocialStoreState = {
-  profiles: socialProfiles.map((item) => ({ ...item, consent: { ...item.consent }, visibility: { ...item.visibility } })),
-  connections: socialConnections.map((item) => ({ ...item })),
-  messageThreads: messageThreads.map((item) => ({ ...item })),
-  recommendations: socialRecommendations.map((item) => ({ ...item })),
-  mapReports: [],
-  auditLog: [],
+  actorProfileId: ACTOR_PROFILE_ID,
+  connections: socialConnections.map((connection) => ({
+    ...connection,
+    peerProfileId: toProfileId(connection.peerName),
+    direction: defaultDirectionByConnectionId[connection.id] ?? "outgoing",
+    initiatedAt: toIso(connection.initiatedAt),
+    respondedAt: connection.respondedAt ? toIso(connection.respondedAt) : undefined,
+  })),
+  threads: messageThreads.map((thread) => ({
+    id: thread.id,
+    withUser: thread.withUser,
+    lastMessage: thread.lastMessage,
+    updatedAt: thread.updatedAt,
+    withProfileId: toProfileId(thread.withUser),
+  })),
+  moderationReports: [],
 };
 
 let state = initialState;
@@ -57,7 +92,7 @@ const persistState = () => {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
-    // Ignore persistence failures so in-memory state updates still render.
+    // Ignore local persistence errors and keep app state in memory.
   }
 };
 
@@ -67,60 +102,41 @@ const setState = (updater: (prev: SocialStoreState) => SocialStoreState) => {
   notify();
 };
 
-const nowId = (prefix: string) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+const nowIso = () => new Date().toISOString();
 
-const createAudit = (payload: Omit<SocialAuditEntry, "id" | "timestamp">): SocialAuditEntry => ({
-  ...payload,
-  id: nowId("SOC-AUD"),
-  timestamp: new Date().toISOString(),
-});
+const resolveConnectionStateForProfile = (snapshot: SocialStoreState, profileId: string): ConnectionState | "none" => {
+  const latest = snapshot.connections
+    .filter((connection) => connection.peerProfileId === profileId)
+    .sort((a, b) => Date.parse(b.initiatedAt) - Date.parse(a.initiatedAt))[0];
 
-const pushAudit = (entry: Omit<SocialAuditEntry, "id" | "timestamp">) => {
-  setState((prev) => ({
-    ...prev,
-    auditLog: [createAudit(entry), ...prev.auditLog],
-  }));
+  return latest?.state ?? "none";
 };
 
-const updateConnectionState = (
-  connectionId: string,
-  nextState: ConnectionState,
-  action: string,
-  details: string,
-): { outcome: ActionOutcome; details: string } => {
-  const connection = state.connections.find((item) => item.id === connectionId);
-  if (!connection) {
-    const result = { outcome: "blocked" as const, details: "Connection not found." };
-    pushAudit({ actorId: "student", action, targetId: connectionId, ...result });
-    return result;
+export const getMessagePermissionReason = (connectionState: ConnectionState | "none") => {
+  switch (connectionState) {
+    case "accepted":
+      return "Messaging is enabled for accepted connections.";
+    case "pending":
+      return "Read-only: request is still pending acceptance.";
+    case "rejected":
+      return "Read-only: request was rejected.";
+    case "cancelled":
+      return "Read-only: request was cancelled before acceptance.";
+    case "blocked":
+      return "Read-only: one side blocked this relationship.";
+    case "expired":
+      return "Read-only: connection expired and messaging is retained only as history.";
+    case "closed":
+      return "Read-only: connection is closed and messaging is archived.";
+    default:
+      return "Read-only: no accepted connection exists.";
   }
-
-  setState((prev) => ({
-    ...prev,
-    connections: prev.connections.map((item) =>
-      item.id === connectionId
-        ? {
-            ...item,
-            state: nextState,
-            respondedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
-          }
-        : item,
-    ),
-    messageThreads: prev.messageThreads.map((thread) =>
-      thread.withUser === connection.peerName ? { ...thread, connectionState: nextState } : thread,
-    ),
-    auditLog: [
-      createAudit({ actorId: "student", action, targetId: connectionId, outcome: "success", details }),
-      ...prev.auditLog,
-    ],
-  }));
-
-  return { outcome: "success", details };
 };
 
 export const socialStore = {
   hydrate() {
     if (hydrated || typeof window === "undefined") return;
+
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
@@ -128,11 +144,15 @@ export const socialStore = {
         state = {
           ...initialState,
           ...parsed,
+          connections: parsed.connections ?? initialState.connections,
+          threads: parsed.threads ?? initialState.threads,
+          moderationReports: parsed.moderationReports ?? initialState.moderationReports,
         };
       } catch {
         state = initialState;
       }
     }
+
     hydrated = true;
     notify();
   },
@@ -143,129 +163,132 @@ export const socialStore = {
   getState() {
     return state;
   },
-  requestConnection(profileId: string) {
-    const profile = state.profiles.find((item) => item.id === profileId);
-    if (!profile || !profile.consent.contactabilityConsent || !profile.visibility.directContactExposed) {
-      const result = {
-        outcome: "blocked" as const,
-        details: "Connection request blocked by current consent/contactability settings.",
+  sendConnectionRequest(targetProfileId: string) {
+    const targetProfile = socialProfiles.find((profile) => profile.id === targetProfileId);
+
+    if (!targetProfile) return;
+
+    setState((prev) => {
+      const existing = prev.connections.find(
+        (connection) => connection.peerProfileId === targetProfileId && ["pending", "accepted", "blocked"].includes(connection.state),
+      );
+      if (existing) return prev;
+
+      return {
+        ...prev,
+        connections: [
+          {
+            id: `CON-${Date.now()}`,
+            peerProfileId: targetProfileId,
+            peerName: targetProfile.name,
+            state: "pending",
+            direction: "outgoing",
+            initiatedAt: nowIso(),
+          },
+          ...prev.connections,
+        ],
       };
-      pushAudit({ actorId: "student", action: "request_connection", targetId: profileId, ...result });
-      return result;
-    }
-
-    const result = { outcome: "success" as const, details: `Connection request sent to ${profile.name}.` };
+    });
+  },
+  acceptConnection(connectionId: string) {
     setState((prev) => ({
       ...prev,
-      connections: [
+      connections: prev.connections.map((connection) =>
+        connection.id === connectionId && connection.state === "pending" && connection.direction === "incoming"
+          ? { ...connection, state: "accepted", respondedAt: nowIso() }
+          : connection,
+      ),
+    }));
+  },
+  rejectConnection(connectionId: string) {
+    setState((prev) => ({
+      ...prev,
+      connections: prev.connections.map((connection) =>
+        connection.id === connectionId && connection.state === "pending" && connection.direction === "incoming"
+          ? { ...connection, state: "rejected", respondedAt: nowIso() }
+          : connection,
+      ),
+    }));
+  },
+  cancelConnection(connectionId: string) {
+    setState((prev) => ({
+      ...prev,
+      connections: prev.connections.map((connection) =>
+        connection.id === connectionId && connection.state === "pending" && connection.direction === "outgoing"
+          ? { ...connection, state: "cancelled", respondedAt: nowIso() }
+          : connection,
+      ),
+    }));
+  },
+  blockUser(peerId: string, reason: string) {
+    setState((prev) => {
+      const existingConnection = prev.connections.find((connection) => connection.peerProfileId === peerId);
+      if (existingConnection) {
+        return {
+          ...prev,
+          connections: prev.connections.map((connection) =>
+            connection.peerProfileId === peerId
+              ? {
+                  ...connection,
+                  state: "blocked",
+                  blockedReason: reason,
+                  respondedAt: nowIso(),
+                }
+              : connection,
+          ),
+        };
+      }
+
+      const profile = socialProfiles.find((candidate) => candidate.id === peerId);
+      if (!profile) return prev;
+
+      return {
+        ...prev,
+        connections: [
+          {
+            id: `CON-${Date.now()}`,
+            peerProfileId: profile.id,
+            peerName: profile.name,
+            state: "blocked",
+            direction: "outgoing",
+            initiatedAt: nowIso(),
+            respondedAt: nowIso(),
+            blockedReason: reason,
+          },
+          ...prev.connections,
+        ],
+      };
+    });
+  },
+  reportEntity(input: { targetType: ReportTargetType; targetId: string; reason: string }) {
+    setState((prev) => ({
+      ...prev,
+      moderationReports: [
         {
-          id: nowId("CON"),
-          peerName: profile.name,
-          state: "pending",
-          initiatedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+          id: `REPORT-${Date.now()}`,
+          reporterProfileId: prev.actorProfileId,
+          targetType: input.targetType,
+          targetId: input.targetId,
+          reason: input.reason,
+          reportedAt: nowIso(),
         },
-        ...prev.connections,
+        ...prev.moderationReports,
       ],
-      auditLog: [createAudit({ actorId: "student", action: "request_connection", targetId: profileId, ...result }), ...prev.auditLog],
     }));
-    return result;
   },
-  blockProfile(profileId: string) {
-    const profile = state.profiles.find((item) => item.id === profileId);
-    if (!profile) {
-      const result = { outcome: "blocked" as const, details: "Profile not found." };
-      pushAudit({ actorId: "student", action: "block_profile", targetId: profileId, ...result });
-      return result;
-    }
+  resolveThreadPermission(threadId: string) {
+    const thread = state.threads.find((candidate) => candidate.id === threadId);
+    if (!thread) return { connectionState: "none" as const, reason: getMessagePermissionReason("none") };
 
-    const existingConnection = state.connections.find((connection) => connection.peerName === profile.name);
-    if (existingConnection) {
-      return updateConnectionState(existingConnection.id, "blocked", "block_profile", `${profile.name} has been blocked.`);
-    }
-
-    const result = { outcome: "success" as const, details: `${profile.name} has been blocked.` };
-    pushAudit({ actorId: "student", action: "block_profile", targetId: profileId, ...result });
-    return result;
-  },
-  reportTarget(targetId: string, reason: string) {
-    const result = { outcome: "success" as const, details: "Report submitted for moderation review." };
-    pushAudit({ actorId: "student", action: "report_target", targetId, ...result, details: `${result.details} Reason: ${reason}` });
-    return result;
-  },
-  blockConnection(connectionId: string) {
-    return updateConnectionState(connectionId, "blocked", "block_connection", "Connection has been blocked.");
-  },
-  sendMessage(threadId: string, message: string) {
-    const thread = state.messageThreads.find((item) => item.id === threadId);
-    if (!thread || thread.connectionState !== "accepted") {
-      const result = { outcome: "blocked" as const, details: "Cannot send message unless connection is accepted." };
-      pushAudit({ actorId: "student", action: "send_message", targetId: threadId, ...result });
-      return result;
-    }
-
-    const result = { outcome: "success" as const, details: "Message sent." };
-    setState((prev) => ({
-      ...prev,
-      messageThreads: prev.messageThreads.map((item) =>
-        item.id === threadId
-          ? {
-              ...item,
-              lastMessage: message,
-              updatedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
-            }
-          : item,
-      ),
-      auditLog: [createAudit({ actorId: "student", action: "send_message", targetId: threadId, ...result }), ...prev.auditLog],
-    }));
-    return result;
-  },
-  reportRecommendation(recommendationId: string) {
-    const recommendation = state.recommendations.find((item) => item.id === recommendationId);
-    if (!recommendation) {
-      const result = { outcome: "blocked" as const, details: "Recommendation not found." };
-      pushAudit({ actorId: "student", action: "report_recommendation", targetId: recommendationId, ...result });
-      return result;
-    }
-
-    const nextReports = recommendation.reports + 1;
-    const nextState = nextReports >= 3 && recommendation.state === "published" ? "auto_obscured_pending_review" : recommendation.state;
-
-    const result = {
-      outcome: "success" as const,
-      details:
-        nextState === "auto_obscured_pending_review"
-          ? "Report submitted; item auto-obscured pending moderation review."
-          : "Report submitted for moderation review.",
+    const connectionState = resolveConnectionStateForProfile(state, thread.withProfileId);
+    return {
+      connectionState,
+      reason: getMessagePermissionReason(connectionState),
     };
-
-    setState((prev) => ({
-      ...prev,
-      recommendations: prev.recommendations.map((item) =>
-        item.id === recommendationId
-          ? {
-              ...item,
-              reports: nextReports,
-              state: nextState,
-            }
-          : item,
-      ),
-      auditLog: [createAudit({ actorId: "student", action: "report_recommendation", targetId: recommendationId, ...result }), ...prev.auditLog],
-    }));
-
-    return result;
-  },
-  reportMapMarker(mapPinId: string, reason: string) {
-    const result = { outcome: "success" as const, details: "Map item reported for moderation." };
-    setState((prev) => ({
-      ...prev,
-      mapReports: [{ id: nowId("MAP-REP"), mapPinId, reason, status: "reported" }, ...prev.mapReports],
-      auditLog: [createAudit({ actorId: "student", action: "report_map_marker", targetId: mapPinId, ...result }), ...prev.auditLog],
-    }));
-    return result;
   },
 };
 
-export const useSocialStore = <T,>(selector: (store: SocialStoreState) => T): T => {
+export const useSocialStore = <T,>(selector: (snapshot: SocialStoreState) => T): T => {
   useEffect(() => {
     socialStore.hydrate();
   }, []);

@@ -3,12 +3,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { socialService } from "@/lib/services/social-service";
-import { assertOutcome, withLatency } from "@/lib/query/mutation-helpers";
+import { type ReportTargetType } from "@/lib/state/social-store";
+import { withLatency } from "@/lib/query/mutation-helpers";
 
-export function useRequestConnectionMutation() {
+export function useSendConnectionRequestMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (profileId: string) => withLatency(() => assertOutcome(socialService.requestConnection(profileId))),
+    mutationFn: (targetProfileId: string) => withLatency(() => socialService.sendConnectionRequest(targetProfileId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
       queryClient.invalidateQueries({ queryKey: ["social", "discover"] });
@@ -16,67 +17,54 @@ export function useRequestConnectionMutation() {
   });
 }
 
-export function useBlockProfileMutation() {
+export function useAcceptConnectionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (profileId: string) => withLatency(() => assertOutcome(socialService.blockProfile(profileId))),
+    mutationFn: (connectionId: string) => withLatency(() => socialService.acceptConnection(connectionId)),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
+    },
+  });
+}
+
+export function useRejectConnectionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (connectionId: string) => withLatency(() => socialService.rejectConnection(connectionId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
+    },
+  });
+}
+
+export function useCancelConnectionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (connectionId: string) => withLatency(() => socialService.cancelConnection(connectionId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
+    },
+  });
+}
+
+export function useBlockUserMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ peerId, reason }: { peerId: string; reason: string }) =>
+      withLatency(() => socialService.blockUser(peerId, reason)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
       queryClient.invalidateQueries({ queryKey: ["social", "discover"] });
-      queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
     },
   });
 }
 
-export function useReportTargetMutation() {
+export function useReportEntityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ targetId, reason }: { targetId: string; reason: string }) =>
-      withLatency(() => assertOutcome(socialService.reportTarget(targetId, reason))),
+    mutationFn: (input: { targetType: ReportTargetType; targetId: string; reason: string }) =>
+      withLatency(() => socialService.reportEntity(input)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["social", "moderation"] });
-    },
-  });
-}
-
-export function useBlockConnectionMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (connectionId: string) => withLatency(() => assertOutcome(socialService.blockConnection(connectionId))),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
-      queryClient.invalidateQueries({ queryKey: ["social", "messages"] });
-    },
-  });
-}
-
-export function useSendMessageMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ threadId, message }: { threadId: string; message: string }) =>
-      withLatency(() => assertOutcome(socialService.sendMessage(threadId, message))),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["social", "messages"] });
-    },
-  });
-}
-
-export function useReportRecommendationMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (recommendationId: string) => withLatency(() => assertOutcome(socialService.reportRecommendation(recommendationId))),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["social", "recommendations"] });
-    },
-  });
-}
-
-export function useReportMapMarkerMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ mapPinId, reason }: { mapPinId: string; reason: string }) =>
-      withLatency(() => assertOutcome(socialService.reportMapMarker(mapPinId, reason))),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["social", "map"] });
       queryClient.invalidateQueries({ queryKey: ["social", "moderation"] });
     },
   });

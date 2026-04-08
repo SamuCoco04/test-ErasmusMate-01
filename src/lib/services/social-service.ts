@@ -1,25 +1,22 @@
-import { socialStore } from "@/lib/state/social-store";
+import { socialStore, type ReportTargetType } from "@/lib/state/social-store";
 
 export const socialService = {
-  requestConnection(profileId: string) {
-    return socialStore.requestConnection(profileId);
+  sendConnectionRequest(targetProfileId: string) {
+    socialStore.sendConnectionRequest(targetProfileId);
   },
-  blockProfile(profileId: string) {
-    return socialStore.blockProfile(profileId);
+  acceptConnection(connectionId: string) {
+    socialStore.acceptConnection(connectionId);
   },
-  reportTarget(targetId: string, reason: string) {
-    return socialStore.reportTarget(targetId, reason);
+  rejectConnection(connectionId: string) {
+    socialStore.rejectConnection(connectionId);
   },
-  blockConnection(connectionId: string) {
-    return socialStore.blockConnection(connectionId);
+  cancelConnection(connectionId: string) {
+    socialStore.cancelConnection(connectionId);
   },
-  sendMessage(threadId: string, message: string) {
-    return socialStore.sendMessage(threadId, message);
+  blockUser(peerId: string, reason: string) {
+    socialStore.blockUser(peerId, reason);
   },
-  reportRecommendation(recommendationId: string) {
-    return socialStore.reportRecommendation(recommendationId);
-  },
-  reportMapMarker(mapPinId: string, reason: string) {
-    return socialStore.reportMapMarker(mapPinId, reason);
+  reportEntity(input: { targetType: ReportTargetType; targetId: string; reason: string }) {
+    socialStore.reportEntity(input);
   },
 };

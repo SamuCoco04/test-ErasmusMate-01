@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -11,11 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  useFinalSubmitMutation,
-  useResubmitAfterRejectionMutation,
-  useSaveSubmissionDraftMutation,
-} from "@/lib/query/institutional-hooks";
+import { institutionalService } from "@/lib/services/institutional-service";
 import { useInstitutionalStore } from "@/lib/state/institutional-store";
 
 const schema = z.object({
@@ -27,7 +23,6 @@ type FormValues = z.infer<typeof schema>;
 
 export default function StudentSubmissionDetailPage() {
   const params = useParams<{ submissionId: string }>();
-  const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const submission = useInstitutionalStore((store) => store.submissions[params.submissionId] ?? null);
   const docs = useInstitutionalStore((store) => store.requiredDocsBySubmissionId[params.submissionId] ?? []);
@@ -35,9 +30,9 @@ export default function StudentSubmissionDetailPage() {
     store.auditLog.find((entry) => entry.submissionId === params.submissionId) ?? null,
   );
 
-  const saveDraftMutation = useSaveSubmissionDraftMutation(params.submissionId);
-  const finalSubmitMutation = useFinalSubmitMutation(params.submissionId);
-  const resubmitMutation = useResubmitAfterRejectionMutation(params.submissionId);
+  const linkedExceptions = useInstitutionalStore((store) =>
+    store.exceptions.filter((exception) => exception.submissionId === params.submissionId),
+  );
 
   const requiredDocs = docs.filter((doc) => doc.required);
   const missingRequiredDocs = requiredDocs.filter((doc) => doc.status !== "attached");
@@ -73,7 +68,6 @@ export default function StudentSubmissionDetailPage() {
   );
 
   const blockedFinalSubmit = missingRequiredDocs.length > 0 || !form.formState.isValid;
-  const anyPending = saveDraftMutation.isPending || finalSubmitMutation.isPending || resubmitMutation.isPending;
 
   if (!submission) {
     return (
@@ -81,7 +75,9 @@ export default function StudentSubmissionDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle>Submission not found</CardTitle>
-            <CardDescription>The requested submission does not exist or is no longer available.</CardDescription>
+            <CardDescription>
+              The requested submission does not exist or is no longer available.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild>
@@ -102,10 +98,22 @@ export default function StudentSubmissionDetailPage() {
         </p>
       </div>
 
-      {banner && (
-        <div className={`rounded-md border p-3 text-sm ${banner.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-          {banner.message}
-        </div>
+      {linkedExceptions.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle>Linked exception effects</CardTitle>
+            <CardDescription>Only approved/applied exceptions modify effective submission governance state.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {linkedExceptions.map((exception) => (
+              <div key={exception.id} className="rounded-md border border-amber-200 bg-white p-3">
+                <p className="font-medium">{exception.id} · {exception.scope} · {exception.state}</p>
+                <p>Requested: {exception.requestedEffect}</p>
+                {exception.appliedEffectSummary && <p className="text-emerald-700">Applied: {exception.appliedEffectSummary}</p>}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       <Card>
@@ -207,52 +215,40 @@ export default function StudentSubmissionDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={anyPending}
-                  onClick={async () => {
-                    const response = await saveDraftMutation.mutateAsync(form.getValues()).catch((error: Error) => {
-                      setBanner({ type: "error", message: error.message });
-                      return null;
-                    });
-                    if (response) {
-                      setBanner({ type: "success", message: response.details });
-                    }
+                  onClick={() => {
+                    institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
                   }}
                 >
-                  {saveDraftMutation.isPending ? "Saving draft..." : "Save draft"}
+                  Save draft
                 </Button>
                 <Button
                   type="button"
-                  disabled={blockedFinalSubmit || anyPending}
+                  disabled={blockedFinalSubmit}
                   onClick={async () => {
                     const valid = await form.trigger();
-                    if (!valid) return;
-
-                    const response = await (submission.state === "rejected" || submission.state === "reopened"
-                      ? resubmitMutation.mutateAsync(form.getValues())
-                      : finalSubmitMutation.mutateAsync()).catch((error: Error) => {
-                      setBanner({ type: "error", message: error.message });
-                      return null;
-                    });
-
-                    if (response) {
-                      setBanner({ type: "success", message: response.details });
+                    if (!valid) {
+                      return;
                     }
+
+                    if (submission.state === "rejected" || submission.state === "reopened") {
+                      institutionalService.resubmitAfterRejection(params.submissionId, form.getValues());
+                      return;
+                    }
+
+                    institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
+                    institutionalService.finalSubmit(params.submissionId);
                   }}
                 >
-                  {resubmitMutation.isPending || finalSubmitMutation.isPending
-                    ? submission.state === "rejected" || submission.state === "reopened"
-                      ? "Resubmitting..."
-                      : "Submitting..."
-                    : submission.state === "rejected" || submission.state === "reopened"
-                      ? "Resubmit after correction"
-                      : "Final submit"}
+                  {submission.state === "rejected" || submission.state === "reopened" ? "Resubmit after correction" : "Final submit"}
                 </Button>
               </div>
             </form>
           </Form>
 
           {latestAuditEvent && (
-            <p className="mt-3 text-sm text-blue-700">Latest update: {latestAuditEvent.action.replaceAll("_", " ")} ({latestAuditEvent.outcome})</p>
+            <p className="mt-3 text-sm text-blue-700">
+              Latest update: {latestAuditEvent.action.replaceAll("_", " ")} ({latestAuditEvent.outcome})
+            </p>
           )}
         </CardContent>
       </Card>

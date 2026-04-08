@@ -54,27 +54,3 @@ export function useReviewDecisionMutation(submissionId: string) {
     },
   });
 }
-
-export function useSubmitExceptionRequestMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ submissionId, rationale }: { submissionId: string; rationale: string }) =>
-      withLatency(() => assertOutcome(institutionalService.submitExceptionRequest(submissionId, rationale))),
-    onSuccess: (_data, { submissionId }) => {
-      queryClient.invalidateQueries({ queryKey: ["institutional", "exceptions"] });
-      queryClient.invalidateQueries({ queryKey: ["institutional", "audit", submissionId] });
-    },
-  });
-}
-
-export function useDecideExceptionMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ exceptionId, decision, rationale, coordinatorId }: { exceptionId: string; decision: "approved" | "rejected"; rationale: string; coordinatorId: string }) =>
-      withLatency(() => assertOutcome(institutionalService.decideException(exceptionId, decision, rationale, coordinatorId))),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["institutional", "exceptions"] });
-      queryClient.invalidateQueries({ queryKey: ["institutional", "audit"] });
-    },
-  });
-}

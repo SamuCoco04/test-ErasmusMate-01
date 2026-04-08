@@ -19,10 +19,31 @@ export const institutionalService = {
   resubmitAfterRejection(submissionId: string, correctedPayload: Record<string, unknown>) {
     return institutionalStore.resubmitAfterRejection(submissionId, correctedPayload);
   },
-  submitExceptionRequest(submissionId: string, rationale: string) {
-    return institutionalStore.submitExceptionRequest(submissionId, rationale);
+  createExceptionRequest({
+    submissionId,
+    scope,
+    rationale,
+    requestedEffect,
+    coveredTargetId,
+  }: {
+    submissionId: string;
+    scope: "deadline" | "document_obligation" | "procedure_condition";
+    rationale: string;
+    requestedEffect: string;
+    coveredTargetId?: string;
+  }) {
+    institutionalStore.createExceptionRequest({ submissionId, scope, rationale, requestedEffect, coveredTargetId });
   },
-  decideException(exceptionId: string, decision: "approved" | "rejected", rationale: string, coordinatorId: string) {
-    return institutionalStore.decideException(exceptionId, decision, rationale, coordinatorId);
+  startExceptionReview(exceptionId: string, coordinatorId: string) {
+    institutionalStore.startExceptionReview(exceptionId, coordinatorId);
+  },
+  approveException(exceptionId: string, rationale: string, coordinatorId: string) {
+    institutionalStore.approveException(exceptionId, rationale, coordinatorId);
+  },
+  rejectException(exceptionId: string, rationale: string, coordinatorId: string) {
+    institutionalStore.rejectException(exceptionId, rationale, coordinatorId);
+  },
+  applyApprovedException(exceptionId: string) {
+    institutionalStore.applyApprovedException(exceptionId);
   },
 };

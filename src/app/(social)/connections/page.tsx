@@ -1,19 +1,13 @@
 "use client";
 
-import { useState } from "react";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useBlockConnectionMutation, useReportTargetMutation } from "@/lib/query/social-hooks";
+import { socialService } from "@/lib/services/social-service";
 import { useSocialStore } from "@/lib/state/social-store";
 
 export default function ConnectionsPage() {
-  const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const connections = useSocialStore((store) => store.connections);
-
-  const reportMutation = useReportTargetMutation();
-  const blockMutation = useBlockConnectionMutation();
+  const connections = useSocialStore((snapshot) => snapshot.connections);
 
   return (
     <div className="space-y-6">
@@ -21,10 +15,6 @@ export default function ConnectionsPage() {
         <h1 className="text-3xl font-semibold">Connections</h1>
         <p className="text-muted-foreground">All connection lifecycle states are mocked for UI coverage and policy testing.</p>
       </div>
-
-      {banner && (
-        <div className={`rounded-md border p-3 text-sm ${banner.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>{banner.message}</div>
-      )}
 
       <Card>
         <CardHeader>
@@ -34,7 +24,10 @@ export default function ConnectionsPage() {
         <CardContent className="space-y-3">
           {connections.map((connection) => {
             const canMessage = connection.state === "accepted";
+            const isIncomingPending = connection.state === "pending" && connection.direction === "incoming";
+            const isOutgoingPending = connection.state === "pending" && connection.direction === "outgoing";
             const isRestricted = connection.state === "blocked" || connection.state === "closed";
+
             return (
               <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-white p-3 text-sm">
                 <div>
@@ -43,34 +36,40 @@ export default function ConnectionsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={canMessage ? "default" : "secondary"}>{connection.state}</Badge>
-                  <Button size="sm" disabled={!canMessage}>Message</Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={isRestricted || reportMutation.isPending}
-                    onClick={async () => {
-                      const result = await reportMutation.mutateAsync({ targetId: connection.id, reason: "connection_report" }).catch((error: Error) => {
-                        setBanner({ type: "error", message: error.message });
-                        return null;
-                      });
-                      if (result) setBanner({ type: "success", message: result.details });
-                    }}
-                  >
-                    {reportMutation.isPending ? "Reporting..." : "Report"}
+                  {isIncomingPending && (
+                    <>
+                      <Button size="sm" onClick={() => socialService.acceptConnection(connection.id)}>
+                        Accept
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => socialService.rejectConnection(connection.id)}>
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                  {isOutgoingPending && (
+                    <Button size="sm" variant="outline" onClick={() => socialService.cancelConnection(connection.id)}>
+                      Cancel request
+                    </Button>
+                  )}
+                  <Button size="sm" disabled={!canMessage}>
+                    Message
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={blockMutation.isPending}
-                    onClick={async () => {
-                      const result = await blockMutation.mutateAsync(connection.id).catch((error: Error) => {
-                        setBanner({ type: "error", message: error.message });
-                        return null;
-                      });
-                      if (result) setBanner({ type: "success", message: result.details });
-                    }}
+                    disabled={isRestricted}
+                    onClick={() =>
+                      socialService.reportEntity({
+                        targetType: "social_interaction",
+                        targetId: connection.id,
+                        reason: "Connection reported from connections page",
+                      })
+                    }
                   >
-                    {blockMutation.isPending ? "Blocking..." : "Block"}
+                    Report
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => socialService.blockUser(connection.peerProfileId, "Blocked from connection page")}>
+                    Block
                   </Button>
                 </div>
               </div>
