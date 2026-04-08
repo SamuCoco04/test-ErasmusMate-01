@@ -121,7 +121,11 @@ export default function RecommendationsPage() {
       socialStore.reportContent(contentId, reason, CURRENT_USER_ID);
     },
     onSuccess: (_, { contentId }) => {
-      setReportReasonById((prev) => ({ ...prev, [contentId]: "" }));
+      setReportReasonById((prev) => {
+        const next = { ...prev };
+        delete next[contentId];
+        return next;
+      });
     },
   });
 
@@ -253,7 +257,7 @@ export default function RecommendationsPage() {
           {socialState.contentItems.map((item) => {
             const canManage = item.authorId === CURRENT_USER_ID && !item.moderationLocked && !item.retentionLocked;
             const isFavorite = (socialState.favoriteByUser[CURRENT_USER_ID] ?? []).includes(item.id);
-            const actionsDisabledByState = item.state === "removed" || item.state === "auto_obscured_pending_review";
+            const actionsDisabledByState = item.state === "removed" || item.state === "auto_obscured_pending_review" || item.state === "hidden";
 
             return (
               <div key={item.id} className="space-y-3 rounded-md border bg-white p-4 text-sm">
@@ -274,12 +278,13 @@ export default function RecommendationsPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => reportMutation.mutate({ contentId: item.id, reason: reportReasonById[item.id] ?? "Needs moderator review" })}
+                    onClick={() => reportMutation.mutate({ contentId: item.id, reason: reportReasonById[item.id]?.trim() || "Needs moderator review" })}
                     disabled={actionsDisabledByState}
                   >
                     Report
                   </Button>
                   <Input
+                    aria-label={`Report reason for "${item.title}"`}
                     className="max-w-xs"
                     value={reportReasonById[item.id] ?? ""}
                     placeholder="Report reason"

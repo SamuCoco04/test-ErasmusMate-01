@@ -2,45 +2,22 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-import type { SocialContentState } from "@/types/social";
+import type {
+  ErasmusRelevantCategory,
+  ModerationReport,
+  PlaceContext,
+  SocialContentItem,
+  SocialContentState,
+  SocialContentType,
+} from "@/types/social";
 
-export type SocialContentType = "recommendation" | "opinion";
-export type ErasmusRelevantCategory = "accommodation" | "transport" | "bureaucracy" | "academics" | "daily_living";
+export type { ErasmusRelevantCategory, ModerationReport, PlaceContext, SocialContentType };
 
-export type PlaceContext = {
-  placeName: string;
-  city: string;
-  destinationCountry: string;
-};
-
-export type ContentItem = {
-  id: string;
-  type: SocialContentType;
-  authorId: string;
-  authorName: string;
-  category: ErasmusRelevantCategory;
-  placeContext: PlaceContext;
-  title: string;
-  body: string;
-  createdAt: string;
-  updatedAt?: string;
-  state: SocialContentState;
-  reports: number;
-  favoritesCount: number;
-  moderationLocked: boolean;
-  retentionLocked: boolean;
-};
-
-export type ModerationReport = {
-  id: string;
-  contentId: string;
-  reporterId: string;
-  reason: string;
-  reportedAt: string;
-};
+/** Backward-compatible alias so existing imports of `ContentItem` continue to work. */
+export type ContentItem = SocialContentItem;
 
 export type SocialStoreState = {
-  contentItems: ContentItem[];
+  contentItems: SocialContentItem[];
   favoriteByUser: Record<string, string[]>;
   moderationReports: ModerationReport[];
 };
@@ -66,6 +43,14 @@ type UpdateContentPayload = {
 
 const STORAGE_KEY = "erasmusmate.social-store.v1";
 const AUTO_OBSCURE_REPORT_THRESHOLD = 3;
+
+const genId = (prefix: string) => {
+  const rand =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().slice(0, 8)
+      : Math.random().toString(36).slice(2, 10);
+  return `${prefix}-${Date.now()}-${rand}`;
+};
 
 const ALLOWED_CATEGORIES: ErasmusRelevantCategory[] = ["accommodation", "transport", "bureaucracy", "academics", "daily_living"];
 
@@ -256,8 +241,8 @@ export const socialStore = {
   createContent(payload: CreateContentPayload) {
     assertErasmusContext(payload.category, payload.placeContext);
 
-    const content: ContentItem = {
-      id: `CONT-${Date.now()}`,
+    const content: SocialContentItem = {
+      id: genId("CONT"),
       ...payload,
       title: payload.title.trim(),
       body: payload.body.trim(),
@@ -273,23 +258,25 @@ export const socialStore = {
     return content;
   },
   editOwnContent(contentId: string, payload: UpdateContentPayload & { actorId: string }) {
+    const { actorId, ...updates } = payload;
+
     setState((prev) => ({
       ...prev,
       contentItems: prev.contentItems.map((item) => {
         if (item.id !== contentId) return item;
-        ensureEditable(item, payload.actorId);
+        ensureEditable(item, actorId);
 
-        const nextCategory = payload.category ?? item.category;
-        const nextPlaceContext = payload.placeContext ?? item.placeContext;
+        const nextCategory = updates.category ?? item.category;
+        const nextPlaceContext = updates.placeContext ?? item.placeContext;
         assertErasmusContext(nextCategory, nextPlaceContext);
 
         return {
           ...item,
-          ...payload,
+          ...updates,
           category: nextCategory,
           placeContext: nextPlaceContext,
-          title: payload.title?.trim() ?? item.title,
-          body: payload.body?.trim() ?? item.body,
+          title: updates.title?.trim() ?? item.title,
+          body: updates.body?.trim() ?? item.body,
           updatedAt: new Date().toISOString(),
         };
       }),
@@ -342,7 +329,7 @@ export const socialStore = {
 
     setState((prev) => {
       const report: ModerationReport = {
-        id: `MR-${Date.now()}`,
+        id: genId("MR"),
         contentId,
         reporterId,
         reason: trimmedReason,
