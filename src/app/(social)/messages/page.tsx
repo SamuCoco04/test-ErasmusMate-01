@@ -1,9 +1,18 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { messageThreads } from "@/lib/mock/social-support";
+import { Input } from "@/components/ui/input";
+import { socialService } from "@/lib/services/social-service";
+import { getMessagePermissionReason, useSocialStore } from "@/lib/state/social-store";
 
 export default function MessagesPage() {
+  const { threads, connections } = useSocialStore((snapshot) => ({
+    threads: snapshot.threads,
+    connections: snapshot.connections,
+  }));
+
   return (
     <div className="space-y-6">
       <div>
@@ -17,24 +26,41 @@ export default function MessagesPage() {
           <CardDescription>Only threads with accepted connections can send new messages; all other states are read-only.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {messageThreads.map((thread) => {
-            const canSend = thread.connectionState === "accepted";
+          {threads.map((thread) => {
+            const resolvedConnection = connections.find((connection) => connection.peerProfileId === thread.withProfileId);
+            const connectionState = resolvedConnection?.state ?? "none";
+            const canSend = connectionState === "accepted";
+            const reason = getMessagePermissionReason(connectionState);
+
             return (
               <div key={thread.id} className="space-y-2 rounded-md border bg-white p-4 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-slate-900">{thread.withUser}</p>
-                  <Badge variant={canSend ? "default" : "secondary"}>{thread.connectionState}</Badge>
+                  <Badge variant={canSend ? "default" : "secondary"}>{connectionState}</Badge>
                 </div>
                 <p className="text-muted-foreground">Last update: {thread.updatedAt}</p>
                 <p>{thread.lastMessage}</p>
+                {canSend ? (
+                  <div className="flex gap-2">
+                    <Input placeholder="Type your message" className="max-w-sm" />
+                    <Button size="sm">Send message</Button>
+                  </div>
+                ) : (
+                  <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">{reason}</p>
+                )}
                 <div className="flex gap-2">
-                  <Button size="sm" disabled={!canSend}>
-                    Send message
-                  </Button>
-                  <Button size="sm" variant="outline">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => socialService.reportEntity({ targetType: "message", targetId: thread.id, reason: "Message thread reported" })}
+                  >
                     Report
                   </Button>
-                  <Button size="sm" variant="outline">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => socialService.blockUser(thread.withProfileId, `Blocked from message thread ${thread.id}`)}
+                  >
                     Block
                   </Button>
                 </div>
