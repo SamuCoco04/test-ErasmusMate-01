@@ -29,7 +29,7 @@ function FormField<
 
 type FormItemContextValue = { id: string };
 
-const FormItemContext = React.createContext<FormItemContextValue>({ id: "" });
+const FormItemContext = React.createContext<FormItemContextValue | null>(null);
 
 function useFormField() {
   const fieldContext = React.useContext(FormFieldContext);
@@ -38,6 +38,10 @@ function useFormField() {
 
   if (!fieldContext) {
     throw new Error("useFormField should be used within <FormField>");
+  }
+
+  if (!itemContext) {
+    throw new Error("useFormField should be used within <FormItem>");
   }
 
   const fieldState = getFieldState(fieldContext.name, formState);
