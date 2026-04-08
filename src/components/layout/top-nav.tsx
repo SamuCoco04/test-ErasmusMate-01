@@ -5,18 +5,20 @@ import { usePathname } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { institutionalMenus } from "@/lib/mock/navigation";
 import { roleOptions } from "@/lib/mock/session";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/providers/session-provider";
 
-const tabs = [
-  { label: "My Mobility", href: "/dashboard", section: "institutional" },
-  { label: "Community", href: "/discover", section: "social" },
-] as const;
-
 export function TopNav() {
   const pathname = usePathname();
   const { role, setRole, name } = useSession();
+
+  const institutionalHref = institutionalMenus[role][0].href;
+  const tabs = [
+    { label: role === "Student" ? "My Mobility" : "Mobility Management", href: institutionalHref, section: "institutional" as const },
+    { label: "Community", href: "/discover", section: "social" as const },
+  ];
 
   return (
     <header className="border-b bg-white">
@@ -27,9 +29,14 @@ export function TopNav() {
           </Link>
           <nav className="flex items-center gap-2">
             {tabs.map((tab) => {
-              const active = tab.section === "institutional" ? pathname.startsWith("/dashboard") : pathname.startsWith("/discover") || pathname.startsWith("/connections") || pathname.startsWith("/messages");
+              const active =
+                tab.section === "institutional"
+                  ? pathname.startsWith("/student") || pathname.startsWith("/dashboard")
+                  : pathname.startsWith("/discover") || pathname.startsWith("/connections") || pathname.startsWith("/messages");
               return (
-                <Link key={tab.href} href={tab.href} className={cn("rounded-md px-3 py-1.5 text-sm", active ? "bg-slate-100 font-medium" : "text-muted-foreground")}>{tab.label}</Link>
+                <Link key={tab.href} href={tab.href} className={cn("rounded-md px-3 py-1.5 text-sm", active ? "bg-slate-100 font-medium" : "text-muted-foreground")}>
+                  {tab.label}
+                </Link>
               );
             })}
           </nav>
