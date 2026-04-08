@@ -5,13 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { socialService } from "@/lib/services/social-service";
-import { getMessagePermissionReason, useSocialStore } from "@/lib/state/social-store";
+import { socialStore, useSocialStore } from "@/lib/state/social-store";
 
 export default function MessagesPage() {
-  const { threads, connections } = useSocialStore((snapshot) => ({
-    threads: snapshot.threads,
-    connections: snapshot.connections,
-  }));
+  const threads = useSocialStore((snapshot) => snapshot.threads);
 
   return (
     <div className="space-y-6">
@@ -27,10 +24,8 @@ export default function MessagesPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           {threads.map((thread) => {
-            const resolvedConnection = connections.find((connection) => connection.peerProfileId === thread.withProfileId);
-            const connectionState = resolvedConnection?.state ?? "none";
+            const { connectionState, reason } = socialStore.resolveThreadPermission(thread.id);
             const canSend = connectionState === "accepted";
-            const reason = getMessagePermissionReason(connectionState);
 
             return (
               <div key={thread.id} className="space-y-2 rounded-md border bg-white p-4 text-sm">

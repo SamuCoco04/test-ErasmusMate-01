@@ -1,4 +1,4 @@
-import { socialStore } from "@/lib/state/social-store";
+import { socialStore, type ReportTargetType } from "@/lib/state/social-store";
 
 export const socialService = {
   sendConnectionRequest(targetProfileId: string) {
@@ -16,7 +16,7 @@ export const socialService = {
   blockUser(peerId: string, reason: string) {
     socialStore.blockUser(peerId, reason);
   },
-  reportEntity(input: { targetType: "social_profile" | "message" | "recommendation" | "opinion" | "social_interaction"; targetId: string; reason: string }) {
+  reportEntity(input: { targetType: ReportTargetType; targetId: string; reason: string }) {
     socialStore.reportEntity(input);
   },
 };

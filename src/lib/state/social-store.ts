@@ -7,7 +7,7 @@ import { messageThreads, socialConnections, socialProfiles, type ConnectionState
 const STORAGE_KEY = "erasmusmate.social-store.v1";
 const ACTOR_PROFILE_ID = "ME-STUDENT";
 
-type ReportTargetType = "social_profile" | "message" | "recommendation" | "opinion" | "social_interaction";
+export type ReportTargetType = "social_profile" | "message" | "recommendation" | "opinion" | "social_interaction";
 
 export type SocialConnectionDirection = "incoming" | "outgoing";
 
@@ -48,6 +48,10 @@ export type SocialStoreState = {
 
 const profileIdByName = Object.fromEntries(socialProfiles.map((profile) => [profile.name, profile.id]));
 
+const toIso = (ts: string) => ts.replace(" ", "T");
+
+const toProfileId = (name: string) => profileIdByName[name] ?? `PROFILE-${name.replace(/ /g, "-")}`;
+
 const defaultDirectionByConnectionId: Record<string, SocialConnectionDirection> = {
   "CON-1": "incoming",
   "CON-2": "outgoing",
@@ -62,12 +66,17 @@ const initialState: SocialStoreState = {
   actorProfileId: ACTOR_PROFILE_ID,
   connections: socialConnections.map((connection) => ({
     ...connection,
-    peerProfileId: profileIdByName[connection.peerName] ?? `PROFILE-${connection.id}`,
+    peerProfileId: toProfileId(connection.peerName),
     direction: defaultDirectionByConnectionId[connection.id] ?? "outgoing",
+    initiatedAt: toIso(connection.initiatedAt),
+    respondedAt: connection.respondedAt ? toIso(connection.respondedAt) : undefined,
   })),
   threads: messageThreads.map((thread) => ({
-    ...thread,
-    withProfileId: profileIdByName[thread.withUser] ?? `PROFILE-${thread.id}`,
+    id: thread.id,
+    withUser: thread.withUser,
+    lastMessage: thread.lastMessage,
+    updatedAt: thread.updatedAt,
+    withProfileId: toProfileId(thread.withUser),
   })),
   moderationReports: [],
 };
