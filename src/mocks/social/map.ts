@@ -1,0 +1,40 @@
+import type { MapLinkedOpinion } from "@/types/social";
+
+export const mapLinkedRecommendationsFixture: MapLinkedOpinion[] = [
+  {
+    id: "MAP-REC-001",
+    placeName: "Universitat de Barcelona — Main Library",
+    city: "Barcelona",
+    destinationCountry: "Spain",
+    contentType: "recommendation",
+    rating: 4.6,
+    text: "Quiet study blocks and useful Erasmus desk guidance.",
+    state: "published",
+    latHint: 41.385,
+    lngHint: 2.173,
+  },
+  {
+    id: "MAP-OPI-002",
+    placeName: "Sant Jordi Residence",
+    city: "Barcelona",
+    destinationCountry: "Spain",
+    contentType: "opinion",
+    rating: 4.2,
+    text: "Affordable for Erasmus students, but do check-in paperwork early.",
+    state: "published",
+    latHint: 41.392,
+    lngHint: 2.162,
+  },
+  {
+    id: "MAP-OPI-011",
+    placeName: "Mobility Office Annex",
+    city: "Barcelona",
+    destinationCountry: "Spain",
+    contentType: "opinion",
+    rating: 3.8,
+    text: "Review reported for potentially outdated queue-times.",
+    state: "auto_obscured_pending_review",
+    latHint: 41.381,
+    lngHint: 2.155,
+  },
+];

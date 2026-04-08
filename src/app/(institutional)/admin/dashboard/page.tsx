@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { governanceKpis, incidentStatusCards, moderationCases, socialFeatureScopes } from "@/lib/mock/admin-governance";
+import { mockFetchers } from "@/lib/query/mock-fetchers";
+import { useMockQueryState } from "@/lib/query/use-mock-query-state";
 
 const severityStyle = {
   high: "bg-rose-100 text-rose-800 border-rose-200",
@@ -11,6 +16,21 @@ const severityStyle = {
 };
 
 export default function AdminDashboardPage() {
+  const mockState = useMockQueryState("adminDashboard");
+  const { isLoading, isError, error } = useQuery({
+    queryKey: ["institutionalOverview", "adminDashboard", mockState],
+    queryFn: () => mockFetchers.institutionalOverview(mockState),
+    retry: false,
+  });
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading administrator dashboard mock data…</p>;
+  }
+
+  if (isError) {
+    return <p className="text-sm text-rose-700">Failed to load administrator dashboard mock data: {(error as Error).message}</p>;
+  }
+
   return (
     <div className="space-y-6">
       <div>

@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { coordinatorScope, exceptionDecisions, reviewQueue, signatureRequests, studentMobilities } from "@/lib/mock/coordinator-institutional";
+import { mockFetchers } from "@/lib/query/mock-fetchers";
+import { useMockQueryState } from "@/lib/query/use-mock-query-state";
 
 const priorityStyle = {
   urgent: "bg-rose-100 text-rose-800 border-rose-200",
@@ -11,6 +16,21 @@ const priorityStyle = {
 };
 
 export default function CoordinatorDashboardPage() {
+  const mockState = useMockQueryState("coordinatorDashboard");
+  const { isLoading, isError, error } = useQuery({
+    queryKey: ["institutionalOverview", "coordinatorDashboard", mockState],
+    queryFn: () => mockFetchers.institutionalOverview(mockState),
+    retry: false,
+  });
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading coordinator dashboard mock data…</p>;
+  }
+
+  if (isError) {
+    return <p className="text-sm text-rose-700">Failed to load coordinator dashboard mock data: {(error as Error).message}</p>;
+  }
+
   return (
     <div className="space-y-6">
       <div>
