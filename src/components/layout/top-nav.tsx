@@ -32,7 +32,11 @@ export function TopNav() {
               const active =
                 tab.section === "institutional"
                   ? pathname.startsWith("/student") || pathname.startsWith("/dashboard") || pathname.startsWith("/coordinator") || pathname.startsWith("/admin")
-                  : pathname.startsWith("/discover") || pathname.startsWith("/connections") || pathname.startsWith("/messages");
+                  : pathname.startsWith("/discover") ||
+                    pathname.startsWith("/connections") ||
+                    pathname.startsWith("/messages") ||
+                    pathname.startsWith("/recommendations") ||
+                    pathname.startsWith("/profile");
               return (
                 <Link key={tab.href} href={tab.href} className={cn("rounded-md px-3 py-1.5 text-sm", active ? "bg-slate-100 font-medium" : "text-muted-foreground")}>
                   {tab.label}
