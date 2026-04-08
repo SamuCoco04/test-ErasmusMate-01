@@ -18,7 +18,14 @@ export const institutionalMenus: Record<Role, NavItem[]> = {
     { label: "Procedure Management", href: "/coordinator/procedure-management", section: "institutional" },
     { label: "Deadline Management", href: "/coordinator/deadline-management", section: "institutional" },
   ],
-  Administrator: [{ label: "Dashboard", href: "/dashboard", section: "institutional" }],
+  Administrator: [
+    { label: "Dashboard", href: "/admin/dashboard", section: "institutional" },
+    { label: "User Management", href: "/admin/user-management", section: "institutional" },
+    { label: "Feature Scoping", href: "/admin/feature-scoping", section: "institutional" },
+    { label: "Moderation Queue", href: "/admin/moderation-queue", section: "institutional" },
+    { label: "Reports", href: "/admin/reports", section: "institutional" },
+    { label: "Audit & Traceability", href: "/admin/audit-traceability", section: "institutional" },
+  ],
 };
 
 export const socialMenus: Record<Role, NavItem[]> = {
