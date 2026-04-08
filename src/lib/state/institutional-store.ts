@@ -261,8 +261,8 @@ export const institutionalStore = {
     }));
   },
   finalSubmit(submissionId: string) {
+    const docs = state.requiredDocsBySubmissionId[submissionId] ?? [];
     return updateSubmission(submissionId, "student", "final_submit", (submission) => {
-      const docs = state.requiredDocsBySubmissionId[submissionId] ?? [];
       const metadataComplete = submission.mandatoryMetadataComplete;
       const validationPassed = submission.validationPassed;
 
@@ -389,7 +389,7 @@ export const institutionalStore = {
 
     setState((prev) => ({
       ...prev,
-      exceptions: prev.exceptions.map((item, itemIndex) => (itemIndex === index ? { ...item, state: nextState, rationale: trimmed } : item)),
+      exceptions: prev.exceptions.map((item, itemIndex) => (itemIndex === index ? { ...item, state: nextState } : item)),
       auditLog: [
         createAuditEntry({
           submissionId: target.submissionId,

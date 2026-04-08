@@ -3,20 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { institutionalService } from "@/lib/services/institutional-service";
-
-const delay = (ms = 700) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const withLatency = async <T,>(fn: () => T, ms?: number): Promise<T> => {
-  await delay(ms);
-  return fn();
-};
-
-const assertOutcome = (result: { outcome: "success" | "blocked"; details: string }) => {
-  if (result.outcome === "blocked") {
-    throw new Error(result.details);
-  }
-  return result;
-};
+import { assertOutcome, withLatency } from "@/lib/query/mutation-helpers";
 
 export function useSaveSubmissionDraftMutation(submissionId: string) {
   const queryClient = useQueryClient();
@@ -73,8 +60,9 @@ export function useSubmitExceptionRequestMutation() {
   return useMutation({
     mutationFn: ({ submissionId, rationale }: { submissionId: string; rationale: string }) =>
       withLatency(() => assertOutcome(institutionalService.submitExceptionRequest(submissionId, rationale))),
-    onSuccess: () => {
+    onSuccess: (_data, { submissionId }) => {
       queryClient.invalidateQueries({ queryKey: ["institutional", "exceptions"] });
+      queryClient.invalidateQueries({ queryKey: ["institutional", "audit", submissionId] });
     },
   });
 }

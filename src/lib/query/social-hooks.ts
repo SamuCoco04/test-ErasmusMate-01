@@ -3,20 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { socialService } from "@/lib/services/social-service";
-
-const delay = (ms = 700) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const withLatency = async <T,>(fn: () => T, ms?: number): Promise<T> => {
-  await delay(ms);
-  return fn();
-};
-
-const assertOutcome = (result: { outcome: "success" | "blocked"; details: string }) => {
-  if (result.outcome === "blocked") {
-    throw new Error(result.details);
-  }
-  return result;
-};
+import { assertOutcome, withLatency } from "@/lib/query/mutation-helpers";
 
 export function useRequestConnectionMutation() {
   const queryClient = useQueryClient();
