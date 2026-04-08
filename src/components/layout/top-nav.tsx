@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/providers/session-provider";
 
 const tabs = [
-  { label: "My Mobility", href: "/dashboard", section: "institutional" },
+  { label: "My Mobility", href: "/student/dashboard", section: "institutional" },
   { label: "Community", href: "/discover", section: "social" },
 ] as const;
 
@@ -27,9 +27,14 @@ export function TopNav() {
           </Link>
           <nav className="flex items-center gap-2">
             {tabs.map((tab) => {
-              const active = tab.section === "institutional" ? pathname.startsWith("/dashboard") : pathname.startsWith("/discover") || pathname.startsWith("/connections") || pathname.startsWith("/messages");
+              const active =
+                tab.section === "institutional"
+                  ? pathname.startsWith("/student") || pathname.startsWith("/dashboard")
+                  : pathname.startsWith("/discover") || pathname.startsWith("/connections") || pathname.startsWith("/messages");
               return (
-                <Link key={tab.href} href={tab.href} className={cn("rounded-md px-3 py-1.5 text-sm", active ? "bg-slate-100 font-medium" : "text-muted-foreground")}>{tab.label}</Link>
+                <Link key={tab.href} href={tab.href} className={cn("rounded-md px-3 py-1.5 text-sm", active ? "bg-slate-100 font-medium" : "text-muted-foreground")}>
+                  {tab.label}
+                </Link>
               );
             })}
           </nav>
