@@ -1,15 +1,21 @@
+"use client";
+
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { deadlines, myMobilityRecord, submissions } from "@/lib/mock/student-institutional";
+import { myMobilityRecord } from "@/lib/mock/student-institutional";
+import { useInstitutionalStore } from "@/lib/state/institutional-store";
 
 const statusStyle: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-800 border-emerald-200",
   in_review: "bg-blue-100 text-blue-800 border-blue-200",
+  submitted: "bg-blue-100 text-blue-800 border-blue-200",
   draft: "bg-slate-100 text-slate-700 border-slate-300",
   approved: "bg-emerald-100 text-emerald-800 border-emerald-200",
   rejected: "bg-rose-100 text-rose-800 border-rose-200",
+  reopened: "bg-amber-100 text-amber-800 border-amber-200",
+  resubmitted: "bg-blue-100 text-blue-800 border-blue-200",
   archived: "bg-zinc-100 text-zinc-700 border-zinc-300",
   overridden: "bg-amber-100 text-amber-800 border-amber-200",
   overdue: "bg-rose-100 text-rose-800 border-rose-200",
@@ -17,7 +23,12 @@ const statusStyle: Record<string, string> = {
 };
 
 export default function StudentDashboardPage() {
-  const actionItems = submissions.filter((submission) => ["draft", "in_review", "rejected", "reopened"].includes(submission.state));
+  const submissions = useInstitutionalStore((store) =>
+    Object.values(store.submissions).filter((submission) => submission.stage !== "Coordinator review"),
+  );
+  const deadlines = useInstitutionalStore((store) => store.deadlines);
+
+  const actionItems = submissions.filter((submission) => ["draft", "submitted", "in_review", "rejected", "reopened"].includes(submission.state));
 
   return (
     <div className="space-y-6">
