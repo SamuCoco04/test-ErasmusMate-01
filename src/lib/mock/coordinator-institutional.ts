@@ -207,4 +207,75 @@ export const reviewDetailBySubmissionId = {
       },
     ],
   },
-} as const;
+  "SUB-2026-0849": {
+    id: "SUB-2026-0849",
+    studentName: "Johan Andersson",
+    destination: "Barcelona, Spain",
+    hostInstitution: "University of Barcelona",
+    procedure: "Transcript of Records",
+    submittedAt: "2026-03-09 09:14",
+    reviewDeadline: "2026-03-11",
+    deficiencyNotes: [
+      "Grade conversion table for STEM modules was absent; student has now appended the official host grading scale.",
+    ],
+    reviewerComments: [
+      "Transcript covers all enrolled modules; credit load matches the approved Learning Agreement.",
+      "Grade conversion verified against UB official scale.",
+    ],
+    validationChecklist: [
+      "All required documents submitted",
+      "Document formats comply with institution policy",
+      "Grade conversion table attached",
+      "Module list matches approved Learning Agreement",
+      "Official host institution stamp present",
+    ],
+    auditEvents: [
+      {
+        id: "AUD-7740",
+        timestamp: "2026-03-09 09:20",
+        actor: "System",
+        action: "Submission assigned to coordinator scope",
+      },
+      {
+        id: "AUD-7745",
+        timestamp: "2026-03-09 11:30",
+        actor: "Dr. Anna Jensen",
+        action: "Initial review started; grade conversion table requested from student",
+      },
+    ],
+  },
+  "SUB-2026-0853": {
+    id: "SUB-2026-0853",
+    studentName: "Luca Bianchi",
+    destination: "Milan, Italy",
+    hostInstitution: "University of Milan",
+    procedure: "Arrival Confirmation",
+    submittedAt: "2026-03-09 16:10",
+    reviewDeadline: "2026-03-14",
+    deficiencyNotes: [],
+    reviewerComments: [
+      "Arrival date confirmed by host institution registry.",
+      "All accommodation documents on file.",
+    ],
+    validationChecklist: [
+      "All required documents submitted",
+      "Document formats comply with institution policy",
+      "Arrival date within agreed mobility window",
+      "Host institution registration confirmation attached",
+    ],
+    auditEvents: [
+      {
+        id: "AUD-7760",
+        timestamp: "2026-03-09 16:20",
+        actor: "System",
+        action: "Submission assigned to coordinator scope",
+      },
+      {
+        id: "AUD-7763",
+        timestamp: "2026-03-10 08:45",
+        actor: "Dr. Anna Jensen",
+        action: "Documents verified; awaiting final coordinator sign-off",
+      },
+    ],
+  },
+};

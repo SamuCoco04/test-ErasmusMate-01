@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,12 @@ export default function CoordinatorReviewDetailPage() {
   const [rationale, setRationale] = useState("");
   const [decision, setDecision] = useState<Decision | null>(null);
   const [auditEvents, setAuditEvents] = useState(detail?.auditEvents ?? []);
+
+  useEffect(() => {
+    setRationale("");
+    setDecision(null);
+    setAuditEvents(detail?.auditEvents ?? []);
+  }, [params.submissionId, detail]);
 
   const rationaleValid = rationale.trim().length >= 12;
 
