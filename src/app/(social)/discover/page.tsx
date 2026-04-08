@@ -1,25 +1,9 @@
-"use client";
-
-import { useQuery } from "@tanstack/react-query";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { socialProfiles } from "@/lib/mock/social-support";
-import { mockFetchers } from "@/lib/query/mock-fetchers";
-import { useMockQueryState } from "@/lib/query/use-mock-query-state";
 
 export default function DiscoverPage() {
-  const mockState = useMockQueryState("discover");
-  const { isLoading, isError, error } = useQuery({
-    queryKey: ["socialOverview", "discover", mockState],
-    queryFn: () => mockFetchers.socialOverview(mockState),
-    retry: false,
-  });
-
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading discover feed mock data…</p>;
-  if (isError) return <p className="text-sm text-rose-700">Failed to load discover data: {(error as Error).message}</p>;
-
   // Only surface profiles where consent is active, not revoked, and visibility is erasmus_scope.
   // Profiles with connections_only or private visibility, or revoked consent, are excluded entirely.
   const discoverableProfiles = socialProfiles.filter(

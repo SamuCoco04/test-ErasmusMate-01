@@ -1,25 +1,9 @@
-"use client";
-
-import { useQuery } from "@tanstack/react-query";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { socialConnections } from "@/lib/mock/social-support";
-import { mockFetchers } from "@/lib/query/mock-fetchers";
-import { useMockQueryState } from "@/lib/query/use-mock-query-state";
 
 export default function ConnectionsPage() {
-  const mockState = useMockQueryState("connections");
-  const { isLoading, isError, error } = useQuery({
-    queryKey: ["socialOverview", "connections", mockState],
-    queryFn: () => mockFetchers.socialOverview(mockState),
-    retry: false,
-  });
-
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading connection lifecycle mock data…</p>;
-  if (isError) return <p className="text-sm text-rose-700">Failed to load connection data: {(error as Error).message}</p>;
-
   return (
     <div className="space-y-6">
       <div>

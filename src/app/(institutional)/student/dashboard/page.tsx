@@ -1,12 +1,7 @@
-"use client";
-
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { mockFetchers } from "@/lib/query/mock-fetchers";
-import { useMockQueryState } from "@/lib/query/use-mock-query-state";
 import { deadlines, myMobilityRecord, submissions } from "@/lib/mock/student-institutional";
 
 const statusStyle: Record<string, string> = {
@@ -22,21 +17,6 @@ const statusStyle: Record<string, string> = {
 };
 
 export default function StudentDashboardPage() {
-  const mockState = useMockQueryState("studentDashboard");
-  const { isLoading, isError, error } = useQuery({
-    queryKey: ["institutionalOverview", "studentDashboard", mockState],
-    queryFn: () => mockFetchers.institutionalOverview(mockState),
-    retry: false,
-  });
-
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading institutional dashboard mock data…</p>;
-  }
-
-  if (isError) {
-    return <p className="text-sm text-rose-700">Failed to load institutional dashboard mock data: {(error as Error).message}</p>;
-  }
-
   const actionItems = submissions.filter((submission) => ["draft", "in_review", "rejected", "reopened"].includes(submission.state));
 
   return (

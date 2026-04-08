@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Flag, MapPin, ShieldCheck, Star } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { mockFetchers } from "@/lib/query/mock-fetchers";
-import { useMockQueryState } from "@/lib/query/use-mock-query-state";
 
 type MapContentType = "recommendation" | "opinion";
 type MapCategory = "accommodation" | "academics" | "bureaucracy" | "daily_living" | "transport";
@@ -88,13 +85,6 @@ const mapPins: MapPinItem[] = [
 const SELECT_CLASS = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 export default function MapExplorerPage() {
-  const mockState = useMockQueryState("mapExplorer");
-  const { isLoading, isError, error } = useQuery({
-    queryKey: ["socialOverview", "mapExplorer", mockState],
-    queryFn: () => mockFetchers.socialOverview(mockState),
-    retry: false,
-  });
-
   const [destination, setDestination] = useState("Spain");
   const [city, setCity] = useState("Barcelona");
   const [category, setCategory] = useState<MapCategory | "all">("all");
@@ -114,9 +104,6 @@ export default function MapExplorerPage() {
   });
 
   const selectedPin = filteredPins.find((p) => p.id === selectedPinId) ?? filteredPins[0] ?? null;
-
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading map-linked recommendations and opinions…</p>;
-  if (isError) return <p className="text-sm text-rose-700">Failed to load map-linked content: {(error as Error).message}</p>;
 
   return (
     <div className="space-y-6">
