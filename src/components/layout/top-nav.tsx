@@ -5,18 +5,20 @@ import { usePathname } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { institutionalMenus } from "@/lib/mock/navigation";
 import { roleOptions } from "@/lib/mock/session";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/providers/session-provider";
 
-const tabs = [
-  { label: "My Mobility", href: "/student/dashboard", section: "institutional" },
-  { label: "Community", href: "/discover", section: "social" },
-] as const;
-
 export function TopNav() {
   const pathname = usePathname();
   const { role, setRole, name } = useSession();
+
+  const institutionalHref = institutionalMenus[role][0].href;
+  const tabs = [
+    { label: role === "Student" ? "My Mobility" : "Mobility Management", href: institutionalHref, section: "institutional" as const },
+    { label: "Community", href: "/discover", section: "social" as const },
+  ];
 
   return (
     <header className="border-b bg-white">

@@ -24,7 +24,7 @@ export default function StudentSubmissionDetailPage() {
   const [lastAction, setLastAction] = useState<"draft" | "submit" | null>(null);
   const params = useParams<{ submissionId: string }>();
 
-  const submission = submissions.find((item) => item.id === params.submissionId) ?? submissions[0];
+  const submission = submissions.find((item) => item.id === params.submissionId) ?? null;
 
   const requiredDocs = requiredDocumentsForSubmission.filter((doc) => doc.required);
   const missingRequiredDocs = requiredDocs.filter((doc) => doc.status === "missing");
@@ -32,13 +32,11 @@ export default function StudentSubmissionDetailPage() {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      submissionMetadata: submission.mandatoryMetadataComplete ? "Host contact validated with current semester program." : "",
+      submissionMetadata: submission?.mandatoryMetadataComplete ? "Host contact validated with current semester program." : "",
       studyCycle: "Bachelor",
     },
     mode: "onChange",
   });
-
-  const metadataMissing = !form.watch("submissionMetadata") || !form.watch("studyCycle");
 
   const mockedValidationMessages = useMemo(
     () => [
@@ -61,7 +59,27 @@ export default function StudentSubmissionDetailPage() {
     [],
   );
 
-  const blockedFinalSubmit = missingRequiredDocs.length > 0 || metadataMissing;
+  const blockedFinalSubmit = missingRequiredDocs.length > 0 || !form.formState.isValid;
+
+  if (!submission) {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Submission not found</CardTitle>
+            <CardDescription>
+              The requested submission does not exist or is no longer available.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <a href="/student/procedures">Back to procedures</a>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -171,11 +189,8 @@ export default function StudentSubmissionDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={async () => {
-                    const valid = await form.trigger();
-                    if (valid) {
-                      setLastAction("draft");
-                    }
+                  onClick={() => {
+                    setLastAction("draft");
                   }}
                 >
                   Save draft
