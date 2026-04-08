@@ -88,6 +88,11 @@ export type InstitutionalStoreState = {
   auditLog: InstitutionalAuditEntry[];
 };
 
+export type InstitutionalActionResult = {
+  outcome: "success" | "blocked";
+  details: string;
+};
+
 const STORAGE_KEY = "erasmusmate.institutional-store.v1";
 
 const cloneRequiredDocs = () => requiredDocumentsForSubmission.map((doc) => ({ ...doc }));
@@ -228,10 +233,19 @@ const updateSubmission = (
     rationale?: string;
     details?: string;
   },
-) => {
+) : InstitutionalActionResult => {
+  let actionResult: InstitutionalActionResult = {
+    outcome: "blocked",
+    details: "Unknown error.",
+  };
+
   setState((prev) => {
     const current = prev.submissions[submissionId];
     if (!current) {
+      actionResult = {
+        outcome: "blocked",
+        details: "Submission not found.",
+      };
       return {
         ...prev,
         auditLog: [
@@ -248,6 +262,10 @@ const updateSubmission = (
     }
 
     const result = applyUpdate(current);
+    actionResult = {
+      outcome: result.outcome,
+      details: result.details ?? "Submission action processed.",
+    };
     const updatedSubmission = result.nextSubmission;
 
     return {
@@ -273,6 +291,7 @@ const updateSubmission = (
       ],
     };
   });
+  return actionResult;
 };
 
 const hasRequiredDocs = (docs: InstitutionalRequiredDocument[]) => docs.filter((doc) => doc.required).every((doc) => doc.status === "attached");
@@ -320,7 +339,7 @@ export const institutionalStore = {
     return state;
   },
   saveSubmissionDraft(submissionId: string, formPayload: FormPayload) {
-    updateSubmission(submissionId, "student", "save_submission_draft", (submission) => ({
+    return updateSubmission(submissionId, "student", "save_submission_draft", (submission) => ({
       outcome: "success",
       details: "Draft payload saved.",
       nextSubmission: {
@@ -332,8 +351,8 @@ export const institutionalStore = {
     }));
   },
   finalSubmit(submissionId: string) {
-    updateSubmission(submissionId, "student", "final_submit", (submission) => {
-      const docs = state.requiredDocsBySubmissionId[submissionId] ?? [];
+    const docs = state.requiredDocsBySubmissionId[submissionId] ?? [];
+    return updateSubmission(submissionId, "student", "final_submit", (submission) => {
       const metadataComplete = submission.mandatoryMetadataComplete;
       const validationPassed = submission.validationPassed;
 
@@ -355,7 +374,7 @@ export const institutionalStore = {
     });
   },
   reviewApprove(submissionId: string, rationale: string, coordinatorId: string) {
-    updateSubmission(submissionId, coordinatorId, "review_approve", (submission) => ({
+    return updateSubmission(submissionId, coordinatorId, "review_approve", (submission) => ({
       outcome: "success",
       rationale,
       nextSubmission: {
@@ -367,7 +386,7 @@ export const institutionalStore = {
     }));
   },
   reviewReject(submissionId: string, rationale: string, coordinatorId: string) {
-    updateSubmission(submissionId, coordinatorId, "review_reject", (submission) => ({
+    return updateSubmission(submissionId, coordinatorId, "review_reject", (submission) => ({
       outcome: "success",
       rationale,
       nextSubmission: {
@@ -379,7 +398,7 @@ export const institutionalStore = {
     }));
   },
   reviewReopen(submissionId: string, rationale: string, coordinatorId: string) {
-    updateSubmission(submissionId, coordinatorId, "review_reopen", (submission) => ({
+    return updateSubmission(submissionId, coordinatorId, "review_reopen", (submission) => ({
       outcome: "success",
       rationale,
       nextSubmission: {
@@ -391,7 +410,7 @@ export const institutionalStore = {
     }));
   },
   resubmitAfterRejection(submissionId: string, correctedPayload: FormPayload) {
-    updateSubmission(submissionId, "student", "resubmit_after_rejection", (submission) => {
+    return updateSubmission(submissionId, "student", "resubmit_after_rejection", (submission) => {
       if (submission.state !== "rejected" && submission.state !== "reopened") {
         return {
           outcome: "blocked",
@@ -745,8 +764,7 @@ export const institutionalStore = {
           ...prev.auditLog,
         ],
       };
-    });
-  },
+    });  },
 };
 
 export const useInstitutionalStore = <T,>(selector: (store: InstitutionalStoreState) => T): T => {

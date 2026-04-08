@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { reviewDetailBySubmissionId } from "@/lib/mock/coordinator-institutional";
-import { institutionalService } from "@/lib/services/institutional-service";
+import { useReviewDecisionMutation } from "@/lib/query/institutional-hooks";
 import { useInstitutionalStore } from "@/lib/state/institutional-store";
 
 const decisionStyle = {
@@ -17,7 +17,7 @@ const decisionStyle = {
   delegated: "bg-blue-100 text-blue-800 border-blue-200",
 };
 
-type Decision = keyof typeof decisionStyle;
+type Decision = "approved" | "rejected" | "reopened";
 
 export default function CoordinatorReviewDetailPage() {
   const params = useParams<{ submissionId: string }>();
@@ -25,6 +25,10 @@ export default function CoordinatorReviewDetailPage() {
 
   const [rationale, setRationale] = useState("");
   const [decision, setDecision] = useState<Decision | null>(null);
+  const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const mutation = useReviewDecisionMutation(params.submissionId);
+
   const auditEvents = useInstitutionalStore((store) =>
     store.auditLog
       .filter((entry) => entry.submissionId === params.submissionId)
@@ -41,35 +45,30 @@ export default function CoordinatorReviewDetailPage() {
   useEffect(() => {
     setRationale("");
     setDecision(null);
+    setBanner(null);
   }, [params.submissionId, detail]);
 
   const rationaleValid = rationale.trim().length >= 12;
 
-  const disabledDecision = useMemo(() => !rationaleValid, [rationaleValid]);
+  const disabledDecision = useMemo(() => !rationaleValid || mutation.isPending, [rationaleValid, mutation.isPending]);
 
   if (!detail) {
     return <div className="rounded-lg border bg-white p-4">Submission not found in coordinator scope.</div>;
   }
 
-  const applyDecision = (nextDecision: Decision) => {
-    if (!rationaleValid) {
-      return;
-    }
+  const applyDecision = async (nextDecision: Decision) => {
+    if (!rationaleValid || mutation.isPending) return;
 
-    setDecision(nextDecision);
+    const response = await mutation
+      .mutateAsync({ decision: nextDecision, rationale: rationale.trim(), coordinatorId: "coordinator:anna-jensen" })
+      .catch((error: Error) => {
+        setBanner({ type: "error", message: error.message });
+        return null;
+      });
 
-    if (nextDecision === "approved") {
-      institutionalService.reviewApprove(params.submissionId, rationale.trim(), "coordinator:anna-jensen");
-      return;
-    }
-
-    if (nextDecision === "rejected") {
-      institutionalService.reviewReject(params.submissionId, rationale.trim(), "coordinator:anna-jensen");
-      return;
-    }
-
-    if (nextDecision === "reopened") {
-      institutionalService.reviewReopen(params.submissionId, rationale.trim(), "coordinator:anna-jensen");
+    if (response) {
+      setDecision(nextDecision);
+      setBanner({ type: "success", message: response.details });
     }
   };
 
@@ -79,6 +78,12 @@ export default function CoordinatorReviewDetailPage() {
         <h1 className="text-3xl font-semibold">Review Submission</h1>
         <p className="text-muted-foreground">{detail.procedure} · {detail.id}</p>
       </div>
+
+      {banner && (
+        <div className={`rounded-md border p-3 text-sm ${banner.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+          {banner.message}
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -136,16 +141,10 @@ export default function CoordinatorReviewDetailPage() {
           {!rationaleValid && <p className="text-sm text-rose-700">Provide at least 12 characters of rationale before approve/reject.</p>}
 
           <div className="flex flex-wrap gap-2">
-            <Button disabled={disabledDecision} onClick={() => applyDecision("approved")}>Approve</Button>
+            <Button disabled={disabledDecision} onClick={() => applyDecision("approved")}>{mutation.isPending ? "Processing..." : "Approve"}</Button>
             <Button variant="outline" disabled={disabledDecision} onClick={() => applyDecision("rejected")}>Reject</Button>
             <Button variant="outline" disabled={disabledDecision} onClick={() => applyDecision("reopened")}>Reopen</Button>
-            <Button
-              variant="outline"
-              disabled
-              title="Delegation is unavailable here until it is connected to the shared audit log."
-            >
-              Delegate (unavailable)
-            </Button>
+            <Button variant="outline" disabled title="Delegation is unavailable here until it is connected to the shared audit log.">Delegate (unavailable)</Button>
           </div>
 
           {decision && <Badge className={decisionStyle[decision]}>Latest action: {decision}</Badge>}
