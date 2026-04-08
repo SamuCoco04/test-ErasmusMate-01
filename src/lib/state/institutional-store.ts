@@ -114,7 +114,11 @@ const notify = () => {
 
 const persistState = () => {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore persistence failures so in-memory state updates and UI notifications still complete.
+  }
 };
 
 const setState = (updater: (prev: InstitutionalStoreState) => InstitutionalStoreState) => {

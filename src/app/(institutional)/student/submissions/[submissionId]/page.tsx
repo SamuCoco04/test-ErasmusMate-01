@@ -201,6 +201,7 @@ export default function StudentSubmissionDetailPage() {
                 </Button>
                 <Button
                   type="button"
+                  disabled={blockedFinalSubmit}
                   onClick={async () => {
                     const valid = await form.trigger();
                     if (!valid) {

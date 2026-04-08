@@ -139,7 +139,13 @@ export default function CoordinatorReviewDetailPage() {
             <Button disabled={disabledDecision} onClick={() => applyDecision("approved")}>Approve</Button>
             <Button variant="outline" disabled={disabledDecision} onClick={() => applyDecision("rejected")}>Reject</Button>
             <Button variant="outline" disabled={disabledDecision} onClick={() => applyDecision("reopened")}>Reopen</Button>
-            <Button variant="outline" onClick={() => setDecision("delegated")}>Delegate</Button>
+            <Button
+              variant="outline"
+              disabled
+              title="Delegation is unavailable here until it is connected to the shared audit log."
+            >
+              Delegate (unavailable)
+            </Button>
           </div>
 
           {decision && <Badge className={decisionStyle[decision]}>Latest action: {decision}</Badge>}
