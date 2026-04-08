@@ -20,7 +20,7 @@ export default function RecommendationsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           {socialRecommendations.map((item) => (
-            <div key={item.id} className="space-y-2 rounded-md border bg-white p-4 text-sm">
+            <div id={item.id} key={item.id} className="space-y-2 rounded-md border bg-white p-4 text-sm scroll-mt-24">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-medium text-slate-900">{item.title}</p>
                 <Badge variant={item.state === "published" ? "default" : "secondary"}>{item.state}</Badge>
