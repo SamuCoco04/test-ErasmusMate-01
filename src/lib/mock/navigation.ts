@@ -9,7 +9,15 @@ export const institutionalMenus: Record<Role, NavItem[]> = {
     { label: "Deadlines", href: "/student/deadlines", section: "institutional" },
     { label: "Exception Requests", href: "/student/exceptions", section: "institutional" },
   ],
-  Coordinator: [{ label: "Dashboard", href: "/dashboard", section: "institutional" }],
+  Coordinator: [
+    { label: "Dashboard", href: "/coordinator/dashboard", section: "institutional" },
+    { label: "Review Queue", href: "/coordinator/review-queue", section: "institutional" },
+    { label: "Signature Requests", href: "/coordinator/signature-requests", section: "institutional" },
+    { label: "Exception Decisions", href: "/coordinator/exception-decisions", section: "institutional" },
+    { label: "Student Mobilities", href: "/coordinator/student-mobilities", section: "institutional" },
+    { label: "Procedure Management", href: "/coordinator/procedure-management", section: "institutional" },
+    { label: "Deadline Management", href: "/coordinator/deadline-management", section: "institutional" },
+  ],
   Administrator: [{ label: "Dashboard", href: "/dashboard", section: "institutional" }],
 };
 
