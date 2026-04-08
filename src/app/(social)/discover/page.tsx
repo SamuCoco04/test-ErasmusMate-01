@@ -1,14 +1,24 @@
+"use client";
+
+import { useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { socialProfiles } from "@/lib/mock/social-support";
+import { useBlockProfileMutation, useReportTargetMutation, useRequestConnectionMutation } from "@/lib/query/social-hooks";
+import { useSocialStore } from "@/lib/state/social-store";
 
 export default function DiscoverPage() {
-  // Only surface profiles where consent is active, not revoked, and visibility is erasmus_scope.
-  // Profiles with connections_only or private visibility, or revoked consent, are excluded entirely.
-  const discoverableProfiles = socialProfiles.filter(
+  const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const profiles = useSocialStore((store) => store.profiles);
+  const discoverableProfiles = profiles.filter(
     (p) => p.consent.discoverabilityConsent && !p.consent.consentRevokedAt && p.visibility.profileVisibility === "erasmus_scope",
   );
+
+  const requestMutation = useRequestConnectionMutation();
+  const reportMutation = useReportTargetMutation();
+  const blockMutation = useBlockProfileMutation();
 
   return (
     <div className="space-y-6">
@@ -16,6 +26,12 @@ export default function DiscoverPage() {
         <h1 className="text-3xl font-semibold">Discover Students</h1>
         <p className="text-muted-foreground">Social-support discovery is consent-based and separate from institutional procedures.</p>
       </div>
+
+      {banner && (
+        <div className={`rounded-md border p-3 text-sm ${banner.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+          {banner.message}
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -46,17 +62,47 @@ export default function DiscoverPage() {
                   <p className="text-muted-foreground">Destination: {profile.destinationCity}</p>
                   <p className="text-muted-foreground">Interests: {profile.interests.join(", ")}</p>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline">
-                      View profile
+                    <Button size="sm" variant="outline">View profile</Button>
+                    <Button
+                      size="sm"
+                      disabled={!contactable || requestMutation.isPending}
+                      onClick={async () => {
+                        const result = await requestMutation.mutateAsync(profile.id).catch((error: Error) => {
+                          setBanner({ type: "error", message: error.message });
+                          return null;
+                        });
+                        if (result) setBanner({ type: "success", message: result.details });
+                      }}
+                    >
+                      {requestMutation.isPending ? "Sending request..." : "Request connection"}
                     </Button>
-                    <Button size="sm" disabled={!contactable}>
-                      Request connection
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={reportMutation.isPending}
+                      onClick={async () => {
+                        const result = await reportMutation.mutateAsync({ targetId: profile.id, reason: "profile_safety_review" }).catch((error: Error) => {
+                          setBanner({ type: "error", message: error.message });
+                          return null;
+                        });
+                        if (result) setBanner({ type: "success", message: result.details });
+                      }}
+                    >
+                      {reportMutation.isPending ? "Reporting..." : "Report"}
                     </Button>
-                    <Button size="sm" variant="outline">
-                      Report
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      Block
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={blockMutation.isPending}
+                      onClick={async () => {
+                        const result = await blockMutation.mutateAsync(profile.id).catch((error: Error) => {
+                          setBanner({ type: "error", message: error.message });
+                          return null;
+                        });
+                        if (result) setBanner({ type: "success", message: result.details });
+                      }}
+                    >
+                      {blockMutation.isPending ? "Blocking..." : "Block"}
                     </Button>
                   </div>
                 </div>

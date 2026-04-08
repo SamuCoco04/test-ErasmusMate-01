@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Flag, MapPin, ShieldCheck, Star } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { useReportMapMarkerMutation } from "@/lib/query/social-hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -92,6 +93,8 @@ export default function MapExplorerPage() {
   const [contentType, setContentType] = useState<MapContentType | "all">("all");
   const [fromDate, setFromDate] = useState("2026-03-01");
   const [selectedPinId, setSelectedPinId] = useState<string | null>(mapPins[0].id);
+  const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const reportMutation = useReportMapMarkerMutation();
 
   const filteredPins = mapPins.filter((pin) => {
     const matchesDestination = !destination || pin.destination.toLowerCase().includes(destination.toLowerCase());
@@ -113,6 +116,10 @@ export default function MapExplorerPage() {
           Explore only public Erasmus-relevant places and linked community content. No route planning, no live tracking, and no personal precise-location exposure.
         </p>
       </div>
+
+      {banner && (
+        <div className={`rounded-md border p-3 text-sm ${banner.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>{banner.message}</div>
+      )}
 
       <Card className="border-amber-200 bg-amber-50/60">
         <CardContent className="flex gap-2 p-4 text-sm text-amber-900">
@@ -270,9 +277,20 @@ export default function MapExplorerPage() {
                   <Button asChild>
                     <Link href="/recommendations">Open related recommendations/opinions</Link>
                   </Button>
-                  <Button variant="outline" className="gap-2">
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    disabled={reportMutation.isPending}
+                    onClick={async () => {
+                      const result = await reportMutation.mutateAsync({ mapPinId: selectedPin.id, reason: "map_place_association_report" }).catch((error: Error) => {
+                        setBanner({ type: "error", message: error.message });
+                        return null;
+                      });
+                      if (result) setBanner({ type: "success", message: result.details });
+                    }}
+                  >
                     <Flag className="h-4 w-4" />
-                    Report content-place association
+                    {reportMutation.isPending ? "Reporting..." : "Report content-place association"}
                   </Button>
                 </div>
               </>

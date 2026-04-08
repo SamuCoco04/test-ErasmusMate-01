@@ -61,6 +61,11 @@ export type InstitutionalStoreState = {
   auditLog: InstitutionalAuditEntry[];
 };
 
+export type InstitutionalActionResult = {
+  outcome: "success" | "blocked";
+  details: string;
+};
+
 const STORAGE_KEY = "erasmusmate.institutional-store.v1";
 
 const cloneRequiredDocs = () => requiredDocumentsForSubmission.map((doc) => ({ ...doc }));
@@ -143,10 +148,19 @@ const updateSubmission = (
     rationale?: string;
     details?: string;
   },
-) => {
+) : InstitutionalActionResult => {
+  let actionResult: InstitutionalActionResult = {
+    outcome: "blocked",
+    details: "Unknown error.",
+  };
+
   setState((prev) => {
     const current = prev.submissions[submissionId];
     if (!current) {
+      actionResult = {
+        outcome: "blocked",
+        details: "Submission not found.",
+      };
       return {
         ...prev,
         auditLog: [
@@ -163,6 +177,10 @@ const updateSubmission = (
     }
 
     const result = applyUpdate(current);
+    actionResult = {
+      outcome: result.outcome,
+      details: result.details ?? "Submission action processed.",
+    };
     const updatedSubmission = result.nextSubmission;
 
     return {
@@ -188,6 +206,7 @@ const updateSubmission = (
       ],
     };
   });
+  return actionResult;
 };
 
 const hasRequiredDocs = (docs: InstitutionalRequiredDocument[]) => docs.filter((doc) => doc.required).every((doc) => doc.status === "attached");
@@ -230,7 +249,7 @@ export const institutionalStore = {
     return state;
   },
   saveSubmissionDraft(submissionId: string, formPayload: FormPayload) {
-    updateSubmission(submissionId, "student", "save_submission_draft", (submission) => ({
+    return updateSubmission(submissionId, "student", "save_submission_draft", (submission) => ({
       outcome: "success",
       details: "Draft payload saved.",
       nextSubmission: {
@@ -242,7 +261,7 @@ export const institutionalStore = {
     }));
   },
   finalSubmit(submissionId: string) {
-    updateSubmission(submissionId, "student", "final_submit", (submission) => {
+    return updateSubmission(submissionId, "student", "final_submit", (submission) => {
       const docs = state.requiredDocsBySubmissionId[submissionId] ?? [];
       const metadataComplete = submission.mandatoryMetadataComplete;
       const validationPassed = submission.validationPassed;
@@ -265,7 +284,7 @@ export const institutionalStore = {
     });
   },
   reviewApprove(submissionId: string, rationale: string, coordinatorId: string) {
-    updateSubmission(submissionId, coordinatorId, "review_approve", (submission) => ({
+    return updateSubmission(submissionId, coordinatorId, "review_approve", (submission) => ({
       outcome: "success",
       rationale,
       nextSubmission: {
@@ -277,7 +296,7 @@ export const institutionalStore = {
     }));
   },
   reviewReject(submissionId: string, rationale: string, coordinatorId: string) {
-    updateSubmission(submissionId, coordinatorId, "review_reject", (submission) => ({
+    return updateSubmission(submissionId, coordinatorId, "review_reject", (submission) => ({
       outcome: "success",
       rationale,
       nextSubmission: {
@@ -289,7 +308,7 @@ export const institutionalStore = {
     }));
   },
   reviewReopen(submissionId: string, rationale: string, coordinatorId: string) {
-    updateSubmission(submissionId, coordinatorId, "review_reopen", (submission) => ({
+    return updateSubmission(submissionId, coordinatorId, "review_reopen", (submission) => ({
       outcome: "success",
       rationale,
       nextSubmission: {
@@ -301,7 +320,7 @@ export const institutionalStore = {
     }));
   },
   resubmitAfterRejection(submissionId: string, correctedPayload: FormPayload) {
-    updateSubmission(submissionId, "student", "resubmit_after_rejection", (submission) => {
+    return updateSubmission(submissionId, "student", "resubmit_after_rejection", (submission) => {
       if (submission.state !== "rejected" && submission.state !== "reopened") {
         return {
           outcome: "blocked",
@@ -320,6 +339,71 @@ export const institutionalStore = {
         },
       };
     });
+  },
+  submitExceptionRequest(submissionId: string, rationale: string) {
+    const trimmed = rationale.trim();
+    if (trimmed.length < 12) {
+      return { outcome: "blocked" as const, details: "Provide at least 12 characters for exception rationale." };
+    }
+
+    const createdId = `EXC-${Date.now()}`;
+    setState((prev) => ({
+      ...prev,
+      exceptions: [
+        ...prev.exceptions,
+        {
+          id: createdId,
+          scope: "deadline",
+          state: "submitted",
+          submissionId,
+          rationale: trimmed,
+        },
+      ],
+      auditLog: [
+        createAuditEntry({
+          submissionId,
+          actorId: "student",
+          action: "exception_request_submit",
+          outcome: "success",
+          details: `Exception ${createdId} submitted.`,
+          rationale: trimmed,
+        }),
+        ...prev.auditLog,
+      ],
+    }));
+    return { outcome: "success" as const, details: `Exception ${createdId} submitted for review.` };
+  },
+  decideException(exceptionId: string, decision: "approved" | "rejected", rationale: string, coordinatorId: string) {
+    const trimmed = rationale.trim();
+    if (trimmed.length < 12) {
+      return { outcome: "blocked" as const, details: "Provide at least 12 characters before decision." };
+    }
+
+    const index = state.exceptions.findIndex((item) => item.id === exceptionId);
+    if (index === -1) {
+      return { outcome: "blocked" as const, details: "Exception request not found." };
+    }
+
+    const target = state.exceptions[index];
+    const nextState = decision === "approved" ? "approved" : "rejected";
+
+    setState((prev) => ({
+      ...prev,
+      exceptions: prev.exceptions.map((item, itemIndex) => (itemIndex === index ? { ...item, state: nextState, rationale: trimmed } : item)),
+      auditLog: [
+        createAuditEntry({
+          submissionId: target.submissionId,
+          actorId: coordinatorId,
+          action: `exception_${decision}`,
+          outcome: "success",
+          details: `Exception ${exceptionId} marked ${nextState}.`,
+          rationale: trimmed,
+        }),
+        ...prev.auditLog,
+      ],
+    }));
+
+    return { outcome: "success" as const, details: `Exception ${exceptionId} marked ${nextState}.` };
   },
 };
 
