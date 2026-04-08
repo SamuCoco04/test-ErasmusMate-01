@@ -30,7 +30,7 @@ export type InstitutionalExceptionRecord = {
   id: string;
   submissionId: string;
   state: ExceptionState;
-  scope: "deadline" | "document_obligation" | "signature";
+  scope: "deadline" | "document_obligation" | "procedure_condition";
   rationale: string;
   decisionBy?: string;
 };

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { socialStore, useSocialStoreState, type ContentItem, type ErasmusRelevantCategory, type SocialContentType } from "@/lib/state/social-store";
+import { socialContentStore, useSocialContentStoreState, type ContentItem, type ErasmusRelevantCategory, type SocialContentType } from "@/lib/state/social-content-store";
 
 const CURRENT_USER_ID = "SOC-STU-001";
 const CURRENT_USER_NAME = "Maria Rodriguez";
@@ -52,7 +52,7 @@ function defaultValuesFromItem(item?: ContentItem): FormValues {
 }
 
 export default function RecommendationsPage() {
-  const socialState = useSocialStoreState();
+  const socialState = useSocialContentStoreState();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reportReasonById, setReportReasonById] = useState<Record<string, string>>({});
 
@@ -69,7 +69,7 @@ export default function RecommendationsPage() {
   const saveContentMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       if (editingItem) {
-        socialStore.editOwnContent(editingItem.id, {
+        socialContentStore.editOwnContent(editingItem.id, {
           actorId: CURRENT_USER_ID,
           type: values.type,
           category: values.category,
@@ -84,7 +84,7 @@ export default function RecommendationsPage() {
         return;
       }
 
-      socialStore.createContent({
+      socialContentStore.createContent({
         type: values.type,
         authorId: CURRENT_USER_ID,
         authorName: CURRENT_USER_NAME,
@@ -106,19 +106,19 @@ export default function RecommendationsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (contentId: string) => {
-      socialStore.deleteOwnContent(contentId, CURRENT_USER_ID);
+      socialContentStore.deleteOwnContent(contentId, CURRENT_USER_ID);
     },
   });
 
   const favoriteMutation = useMutation({
     mutationFn: async (contentId: string) => {
-      socialStore.toggleFavorite(contentId, CURRENT_USER_ID);
+      socialContentStore.toggleFavorite(contentId, CURRENT_USER_ID);
     },
   });
 
   const reportMutation = useMutation({
     mutationFn: async ({ contentId, reason }: { contentId: string; reason: string }) => {
-      socialStore.reportContent(contentId, reason, CURRENT_USER_ID);
+      socialContentStore.reportContent(contentId, reason, CURRENT_USER_ID);
     },
     onSuccess: (_, { contentId }) => {
       setReportReasonById((prev) => {

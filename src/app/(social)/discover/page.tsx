@@ -1,13 +1,17 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { socialProfiles } from "@/lib/mock/social-support";
+import { socialService } from "@/lib/services/social-service";
+import { useSocialStore } from "@/lib/state/social-store";
 
 export default function DiscoverPage() {
-  // Only surface profiles where consent is active, not revoked, and visibility is erasmus_scope.
-  // Profiles with connections_only or private visibility, or revoked consent, are excluded entirely.
+  const connections = useSocialStore((snapshot) => snapshot.connections);
+
   const discoverableProfiles = socialProfiles.filter(
-    (p) => p.consent.discoverabilityConsent && !p.consent.consentRevokedAt && p.visibility.profileVisibility === "erasmus_scope",
+    (profile) => profile.consent.discoverabilityConsent && !profile.consent.consentRevokedAt && profile.visibility.profileVisibility === "erasmus_scope",
   );
 
   return (
@@ -30,6 +34,9 @@ export default function DiscoverPage() {
           ) : (
             discoverableProfiles.map((profile) => {
               const contactable = profile.consent.contactabilityConsent && profile.visibility.directContactExposed;
+              const activeConnection = connections.find(
+                (connection) => connection.peerProfileId === profile.id && ["pending", "accepted", "blocked"].includes(connection.state),
+              );
 
               return (
                 <div key={profile.id} className="space-y-3 rounded-md border bg-white p-4">
@@ -49,15 +56,21 @@ export default function DiscoverPage() {
                     <Button size="sm" variant="outline">
                       View profile
                     </Button>
-                    <Button size="sm" disabled={!contactable}>
-                      Request connection
+                    <Button
+                      size="sm"
+                      disabled={!contactable || Boolean(activeConnection)}
+                      onClick={() => socialService.sendConnectionRequest(profile.id)}
+                    >
+                      {activeConnection?.state === "pending" ? "Request pending" : activeConnection?.state === "accepted" ? "Connected" : "Request connection"}
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => socialService.reportEntity({ targetType: "social_profile", targetId: profile.id, reason: "User report from discover page" })}
+                    >
                       Report
                     </Button>
-                    <Button size="sm" variant="outline">
-                      Block
-                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => socialService.blockUser(profile.id, "Blocked from discover page")}>Block</Button>
                   </div>
                 </div>
               );
