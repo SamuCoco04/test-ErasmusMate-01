@@ -55,8 +55,13 @@ export default function StudentExceptionsPage() {
             <form
               className="grid gap-4 md:grid-cols-2"
               onSubmit={form.handleSubmit((values) => {
-                institutionalService.createExceptionRequest(values);
-                form.reset({ ...values, rationale: "", requestedEffect: "", coveredTargetId: "" });
+                const sanitizedValues = {
+                  ...values,
+                  coveredTargetId: values.coveredTargetId?.trim() ? values.coveredTargetId.trim() : undefined,
+                };
+
+                institutionalService.createExceptionRequest(sanitizedValues);
+                form.reset({ ...sanitizedValues, rationale: "", requestedEffect: "", coveredTargetId: undefined });
               })}
             >
               <FormField
@@ -175,7 +180,7 @@ export default function StudentExceptionsPage() {
               <p className="text-sm">{exception.rationale}</p>
               {exception.appliedEffectSummary && <p className="mt-1 text-sm text-emerald-700">Applied effect: {exception.appliedEffectSummary}</p>}
               <ul className="mt-2 space-y-1 rounded-md bg-slate-50 p-2 text-xs text-slate-700">
-                {exception.timeline.map((event) => (
+                {(exception.timeline ?? []).map((event) => (
                   <li key={event.id}>
                     {new Date(event.at).toLocaleString()} · {event.actorId} · {event.note}
                   </li>

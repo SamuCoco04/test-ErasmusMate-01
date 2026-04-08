@@ -425,6 +425,23 @@ export const institutionalStore = {
     coveredTargetId?: string;
   }) {
     setState((prev) => {
+      if (!prev.submissions[submissionId]) {
+        return {
+          ...prev,
+          auditLog: [
+            createAuditEntry({
+              submissionId,
+              actorId: "student",
+              action: "exception_request_created",
+              outcome: "blocked",
+              rationale,
+              details: `Blocked: submission ${submissionId} not found in store.`,
+            }),
+            ...prev.auditLog,
+          ],
+        };
+      }
+
       const exceptionId = `EXC-${new Date().getFullYear()}-${String(prev.exceptions.length + 1).padStart(3, "0")}`;
       const newException: InstitutionalException = {
         id: exceptionId,
@@ -461,6 +478,22 @@ export const institutionalStore = {
         return prev;
       }
 
+      if (exception.state !== "submitted") {
+        return {
+          ...prev,
+          auditLog: [
+            createAuditEntry({
+              submissionId: exception.submissionId,
+              actorId: coordinatorId,
+              action: "exception_review_started",
+              outcome: "blocked",
+              details: `Blocked: exception ${exceptionId} is in state '${exception.state}', not 'submitted'.`,
+            }),
+            ...prev.auditLog,
+          ],
+        };
+      }
+
       const updatedExceptions = prev.exceptions.map((item) =>
         item.id === exceptionId
           ? {
@@ -493,6 +526,23 @@ export const institutionalStore = {
       const exception = prev.exceptions.find((item) => item.id === exceptionId);
       if (!exception) {
         return prev;
+      }
+
+      if (exception.state !== "submitted" && exception.state !== "in_review") {
+        return {
+          ...prev,
+          auditLog: [
+            createAuditEntry({
+              submissionId: exception.submissionId,
+              actorId: coordinatorId,
+              action: "exception_approved",
+              outcome: "blocked",
+              rationale,
+              details: `Blocked: exception ${exceptionId} is in state '${exception.state}', not approvable.`,
+            }),
+            ...prev.auditLog,
+          ],
+        };
       }
 
       const updatedExceptions = prev.exceptions.map((item) =>
@@ -529,6 +579,23 @@ export const institutionalStore = {
       const exception = prev.exceptions.find((item) => item.id === exceptionId);
       if (!exception) {
         return prev;
+      }
+
+      if (exception.state !== "submitted" && exception.state !== "in_review") {
+        return {
+          ...prev,
+          auditLog: [
+            createAuditEntry({
+              submissionId: exception.submissionId,
+              actorId: coordinatorId,
+              action: "exception_rejected",
+              outcome: "blocked",
+              rationale,
+              details: `Blocked: exception ${exceptionId} is in state '${exception.state}', not rejectable.`,
+            }),
+            ...prev.auditLog,
+          ],
+        };
       }
 
       const updatedExceptions = prev.exceptions.map((item) =>
@@ -571,18 +638,20 @@ export const institutionalStore = {
       let updatedDocs = prev.requiredDocsBySubmissionId;
       let updatedSubmissions = prev.submissions;
       let appliedEffectSummary = "No scope effect applied.";
+      let anyEffectApplied = false;
 
       if (exception.scope === "deadline") {
         updatedDeadlines = prev.deadlines.map((deadline) => {
           if (exception.coveredTargetId && deadline.id !== exception.coveredTargetId) {
             return deadline;
           }
-          if (!exception.coveredTargetId && deadline.submissionId && deadline.submissionId !== exception.submissionId) {
+          if (!exception.coveredTargetId && deadline.submissionId !== exception.submissionId) {
             return deadline;
           }
 
           const requestedDate = parseRequestedDate(exception.requestedEffect);
           appliedEffectSummary = `Deadline effective due date updated${requestedDate ? ` to ${requestedDate}` : ""}.`;
+          anyEffectApplied = true;
 
           return {
             ...deadline,
@@ -595,18 +664,26 @@ export const institutionalStore = {
 
       if (exception.scope === "document_obligation") {
         const submissionDocs = prev.requiredDocsBySubmissionId[exception.submissionId] ?? [];
+        let docEffectApplied = false;
+        const updatedSubmissionDocs = submissionDocs.map((doc) => {
+          if (!exception.coveredTargetId || doc.id === exception.coveredTargetId) {
+            if (doc.required) {
+              docEffectApplied = true;
+            }
+            return { ...doc, required: false };
+          }
+          return doc;
+        });
+        if (docEffectApplied) {
+          anyEffectApplied = true;
+        }
         updatedDocs = {
           ...prev.requiredDocsBySubmissionId,
-          [exception.submissionId]: submissionDocs.map((doc) =>
-            !exception.coveredTargetId || doc.id === exception.coveredTargetId
-              ? {
-                  ...doc,
-                  required: false,
-                }
-              : doc,
-          ),
+          [exception.submissionId]: updatedSubmissionDocs,
         };
-        appliedEffectSummary = "Covered document obligation marked as waived for this submission only.";
+        if (docEffectApplied) {
+          appliedEffectSummary = "Covered document obligation marked as waived for this submission only.";
+        }
       }
 
       if (exception.scope === "procedure_condition") {
@@ -620,7 +697,24 @@ export const institutionalStore = {
             },
           };
           appliedEffectSummary = "Covered procedure condition constraint marked as satisfied for effective state checks.";
+          anyEffectApplied = true;
         }
+      }
+
+      if (!anyEffectApplied) {
+        return {
+          ...prev,
+          auditLog: [
+            createAuditEntry({
+              submissionId: exception.submissionId,
+              actorId: "system",
+              action: "exception_applied",
+              outcome: "blocked",
+              details: `Blocked: exception ${exceptionId} scope=${exception.scope} produced no state change (coveredTargetId or submissionId not matched).`,
+            }),
+            ...prev.auditLog,
+          ],
+        };
       }
 
       const updatedExceptions = prev.exceptions.map((item) =>

@@ -13,6 +13,7 @@ const COORDINATOR_ID = "coord-anna-jensen";
 
 export default function CoordinatorExceptionDecisionsPage() {
   const exceptions = useInstitutionalStore((store) => store.exceptions);
+  const activeExceptions = exceptions.filter((item) => item.state === "submitted" || item.state === "in_review" || item.state === "approved");
   const [decisionRationales, setDecisionRationales] = useState<Record<string, string>>({});
 
   return (
@@ -24,7 +25,7 @@ export default function CoordinatorExceptionDecisionsPage() {
       <Card>
         <CardHeader><CardTitle>Active exception requests</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          {exceptions.map((item) => {
+          {activeExceptions.map((item) => {
             const rationale = decisionRationales[item.id] ?? "";
             const canDecide = rationale.trim().length >= 10;
 
