@@ -8,6 +8,10 @@ import type { DeadlineState, SubmissionState } from "@/types/institutional";
 
 type FormPayload = Record<string, unknown>;
 
+type ExceptionScope = "deadline" | "document_obligation" | "procedure_condition";
+
+type ExceptionState = "submitted" | "in_review" | "approved" | "rejected" | "applied" | "closed";
+
 export type InstitutionalRequiredDocument = {
   id: string;
   title: string;
@@ -33,6 +37,28 @@ export type InstitutionalSubmission = {
   latestDecisionBy?: string;
 };
 
+export type InstitutionalExceptionTimelineEvent = {
+  id: string;
+  type: "request_created" | "review_started" | "approved" | "rejected" | "applied";
+  at: string;
+  actorId: string;
+  note: string;
+};
+
+export type InstitutionalException = {
+  id: string;
+  submissionId: string;
+  state: ExceptionState;
+  scope: ExceptionScope;
+  rationale: string;
+  requestedEffect: string;
+  coveredTargetId?: string;
+  decisionBy?: string;
+  decisionRationale?: string;
+  appliedEffectSummary?: string;
+  timeline: InstitutionalExceptionTimelineEvent[];
+};
+
 export type InstitutionalAuditEntry = {
   id: string;
   submissionId: string;
@@ -51,13 +77,14 @@ export type InstitutionalStoreState = {
   requiredDocsBySubmissionId: Record<string, InstitutionalRequiredDocument[]>;
   deadlines: Array<{
     id: string;
+    submissionId?: string;
     obligation: string;
     officialDueDate: string;
     effectiveDueDate: string;
     state: DeadlineState;
     overrideBasis: string | null;
   }>;
-  exceptions: typeof exceptions;
+  exceptions: InstitutionalException[];
   auditLog: InstitutionalAuditEntry[];
 };
 
@@ -96,11 +123,57 @@ const initialSubmissions: Record<string, InstitutionalSubmission> = {
   ),
 };
 
+const nowIso = () => new Date().toISOString();
+
+const mapInitialExceptions = (): InstitutionalException[] =>
+  exceptions.map((item, index) => {
+    const rawState = item.state as string;
+    const rawScope = item.scope as string;
+
+    const normalizedState: ExceptionState =
+      rawState === "delegated"
+        ? "in_review"
+        : ["submitted", "in_review", "approved", "rejected", "applied", "closed"].includes(rawState)
+          ? (rawState as ExceptionState)
+          : "submitted";
+
+    const normalizedScope: ExceptionScope =
+      rawScope === "signature"
+        ? "procedure_condition"
+        : ["deadline", "document_obligation", "procedure_condition"].includes(rawScope)
+          ? (rawScope as ExceptionScope)
+          : "procedure_condition";
+
+    return {
+      id: item.id,
+      submissionId: item.submissionId,
+      state: normalizedState,
+      scope: normalizedScope,
+      rationale: item.rationale,
+      requestedEffect: "requestedEffect" in item && typeof item.requestedEffect === "string" ? item.requestedEffect : "Institutional exception requested.",
+      coveredTargetId: "coveredTargetId" in item && typeof item.coveredTargetId === "string" ? item.coveredTargetId : undefined,
+      decisionBy: "decisionBy" in item && typeof item.decisionBy === "string" ? item.decisionBy : undefined,
+      decisionRationale:
+        "decisionRationale" in item && typeof item.decisionRationale === "string" ? item.decisionRationale : undefined,
+      appliedEffectSummary:
+        "appliedEffectSummary" in item && typeof item.appliedEffectSummary === "string" ? item.appliedEffectSummary : undefined,
+      timeline: [
+        {
+          id: `EVT-seed-${index + 1}`,
+          type: "request_created",
+          at: nowIso(),
+          actorId: "student",
+          note: "Exception request submitted.",
+        },
+      ],
+    };
+  });
+
 const initialState: InstitutionalStoreState = {
   submissions: initialSubmissions,
   requiredDocsBySubmissionId: Object.fromEntries(Object.keys(initialSubmissions).map((id) => [id, cloneRequiredDocs()])),
   deadlines: deadlines.map((deadline) => ({ ...deadline })),
-  exceptions: exceptions.map((exception) => ({ ...exception })),
+  exceptions: mapInitialExceptions(),
   auditLog: [],
 };
 
@@ -130,7 +203,19 @@ const setState = (updater: (prev: InstitutionalStoreState) => InstitutionalStore
 const createAuditEntry = (entry: Omit<InstitutionalAuditEntry, "id" | "timestamp">): InstitutionalAuditEntry => ({
   ...entry,
   id: `AUD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-  timestamp: new Date().toISOString(),
+  timestamp: nowIso(),
+});
+
+const createExceptionEvent = (
+  type: InstitutionalExceptionTimelineEvent["type"],
+  actorId: string,
+  note: string,
+): InstitutionalExceptionTimelineEvent => ({
+  id: `EVT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+  type,
+  at: nowIso(),
+  actorId,
+  note,
 });
 
 const updateSubmission = (
@@ -191,6 +276,11 @@ const updateSubmission = (
 };
 
 const hasRequiredDocs = (docs: InstitutionalRequiredDocument[]) => docs.filter((doc) => doc.required).every((doc) => doc.status === "attached");
+
+const parseRequestedDate = (requestedEffect: string): string | null => {
+  const match = requestedEffect.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+  return match?.[1] ?? null;
+};
 
 export const institutionalStore = {
   hydrate() {
@@ -318,6 +408,248 @@ export const institutionalStore = {
           lastPayload: { ...correctedPayload },
           mandatoryMetadataComplete: Boolean(correctedPayload.submissionMetadata),
         },
+      };
+    });
+  },
+  createExceptionRequest({
+    submissionId,
+    scope,
+    rationale,
+    requestedEffect,
+    coveredTargetId,
+  }: {
+    submissionId: string;
+    scope: ExceptionScope;
+    rationale: string;
+    requestedEffect: string;
+    coveredTargetId?: string;
+  }) {
+    setState((prev) => {
+      const exceptionId = `EXC-${new Date().getFullYear()}-${String(prev.exceptions.length + 1).padStart(3, "0")}`;
+      const newException: InstitutionalException = {
+        id: exceptionId,
+        submissionId,
+        scope,
+        state: "submitted",
+        rationale,
+        requestedEffect,
+        coveredTargetId,
+        timeline: [createExceptionEvent("request_created", "student", "Exception request submitted for official review.")],
+      };
+
+      return {
+        ...prev,
+        exceptions: [newException, ...prev.exceptions],
+        auditLog: [
+          createAuditEntry({
+            submissionId,
+            actorId: "student",
+            action: "exception_request_created",
+            outcome: "success",
+            rationale,
+            details: `Scope=${scope}; requestedEffect=${requestedEffect}; coveredTargetId=${coveredTargetId ?? "n/a"}`,
+          }),
+          ...prev.auditLog,
+        ],
+      };
+    });
+  },
+  startExceptionReview(exceptionId: string, coordinatorId: string) {
+    setState((prev) => {
+      const exception = prev.exceptions.find((item) => item.id === exceptionId);
+      if (!exception) {
+        return prev;
+      }
+
+      const updatedExceptions = prev.exceptions.map((item) =>
+        item.id === exceptionId
+          ? {
+              ...item,
+              state: "in_review" as ExceptionState,
+              decisionBy: coordinatorId,
+              timeline: [...item.timeline, createExceptionEvent("review_started", coordinatorId, "Coordinator started exception review.")],
+            }
+          : item,
+      );
+
+      return {
+        ...prev,
+        exceptions: updatedExceptions,
+        auditLog: [
+          createAuditEntry({
+            submissionId: exception.submissionId,
+            actorId: coordinatorId,
+            action: "exception_review_started",
+            outcome: "success",
+            details: `Exception ${exceptionId} entered in_review state.`,
+          }),
+          ...prev.auditLog,
+        ],
+      };
+    });
+  },
+  approveException(exceptionId: string, rationale: string, coordinatorId: string) {
+    setState((prev) => {
+      const exception = prev.exceptions.find((item) => item.id === exceptionId);
+      if (!exception) {
+        return prev;
+      }
+
+      const updatedExceptions = prev.exceptions.map((item) =>
+        item.id === exceptionId
+          ? {
+              ...item,
+              state: "approved" as ExceptionState,
+              decisionBy: coordinatorId,
+              decisionRationale: rationale,
+              timeline: [...item.timeline, createExceptionEvent("approved", coordinatorId, `Approved: ${rationale}`)],
+            }
+          : item,
+      );
+
+      return {
+        ...prev,
+        exceptions: updatedExceptions,
+        auditLog: [
+          createAuditEntry({
+            submissionId: exception.submissionId,
+            actorId: coordinatorId,
+            action: "exception_approved",
+            outcome: "success",
+            rationale,
+            details: `Exception ${exceptionId} approved for scope ${exception.scope}.`,
+          }),
+          ...prev.auditLog,
+        ],
+      };
+    });
+  },
+  rejectException(exceptionId: string, rationale: string, coordinatorId: string) {
+    setState((prev) => {
+      const exception = prev.exceptions.find((item) => item.id === exceptionId);
+      if (!exception) {
+        return prev;
+      }
+
+      const updatedExceptions = prev.exceptions.map((item) =>
+        item.id === exceptionId
+          ? {
+              ...item,
+              state: "rejected" as ExceptionState,
+              decisionBy: coordinatorId,
+              decisionRationale: rationale,
+              timeline: [...item.timeline, createExceptionEvent("rejected", coordinatorId, `Rejected: ${rationale}`)],
+            }
+          : item,
+      );
+
+      return {
+        ...prev,
+        exceptions: updatedExceptions,
+        auditLog: [
+          createAuditEntry({
+            submissionId: exception.submissionId,
+            actorId: coordinatorId,
+            action: "exception_rejected",
+            outcome: "success",
+            rationale,
+            details: `Exception ${exceptionId} rejected.`,
+          }),
+          ...prev.auditLog,
+        ],
+      };
+    });
+  },
+  applyApprovedException(exceptionId: string) {
+    setState((prev) => {
+      const exception = prev.exceptions.find((item) => item.id === exceptionId);
+      if (!exception || exception.state !== "approved") {
+        return prev;
+      }
+
+      let updatedDeadlines = prev.deadlines;
+      let updatedDocs = prev.requiredDocsBySubmissionId;
+      let updatedSubmissions = prev.submissions;
+      let appliedEffectSummary = "No scope effect applied.";
+
+      if (exception.scope === "deadline") {
+        updatedDeadlines = prev.deadlines.map((deadline) => {
+          if (exception.coveredTargetId && deadline.id !== exception.coveredTargetId) {
+            return deadline;
+          }
+          if (!exception.coveredTargetId && deadline.submissionId && deadline.submissionId !== exception.submissionId) {
+            return deadline;
+          }
+
+          const requestedDate = parseRequestedDate(exception.requestedEffect);
+          appliedEffectSummary = `Deadline effective due date updated${requestedDate ? ` to ${requestedDate}` : ""}.`;
+
+          return {
+            ...deadline,
+            effectiveDueDate: requestedDate ?? deadline.effectiveDueDate,
+            state: "overridden" as DeadlineState,
+            overrideBasis: `${exception.id} approved exception`,
+          };
+        });
+      }
+
+      if (exception.scope === "document_obligation") {
+        const submissionDocs = prev.requiredDocsBySubmissionId[exception.submissionId] ?? [];
+        updatedDocs = {
+          ...prev.requiredDocsBySubmissionId,
+          [exception.submissionId]: submissionDocs.map((doc) =>
+            !exception.coveredTargetId || doc.id === exception.coveredTargetId
+              ? {
+                  ...doc,
+                  required: false,
+                }
+              : doc,
+          ),
+        };
+        appliedEffectSummary = "Covered document obligation marked as waived for this submission only.";
+      }
+
+      if (exception.scope === "procedure_condition") {
+        const submission = prev.submissions[exception.submissionId];
+        if (submission) {
+          updatedSubmissions = {
+            ...prev.submissions,
+            [exception.submissionId]: {
+              ...submission,
+              validationPassed: true,
+            },
+          };
+          appliedEffectSummary = "Covered procedure condition constraint marked as satisfied for effective state checks.";
+        }
+      }
+
+      const updatedExceptions = prev.exceptions.map((item) =>
+        item.id === exceptionId
+          ? {
+              ...item,
+              state: "applied" as ExceptionState,
+              appliedEffectSummary,
+              timeline: [...item.timeline, createExceptionEvent("applied", "system", appliedEffectSummary)],
+            }
+          : item,
+      );
+
+      return {
+        ...prev,
+        deadlines: updatedDeadlines,
+        requiredDocsBySubmissionId: updatedDocs,
+        submissions: updatedSubmissions,
+        exceptions: updatedExceptions,
+        auditLog: [
+          createAuditEntry({
+            submissionId: exception.submissionId,
+            actorId: "system",
+            action: "exception_applied",
+            outcome: "success",
+            details: `Exception ${exceptionId} applied for scope ${exception.scope}. ${appliedEffectSummary}`,
+          }),
+          ...prev.auditLog,
+        ],
       };
     });
   },

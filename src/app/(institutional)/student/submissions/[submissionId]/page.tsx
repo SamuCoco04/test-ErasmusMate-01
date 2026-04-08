@@ -30,6 +30,10 @@ export default function StudentSubmissionDetailPage() {
     store.auditLog.find((entry) => entry.submissionId === params.submissionId) ?? null,
   );
 
+  const linkedExceptions = useInstitutionalStore((store) =>
+    store.exceptions.filter((exception) => exception.submissionId === params.submissionId),
+  );
+
   const requiredDocs = docs.filter((doc) => doc.required);
   const missingRequiredDocs = requiredDocs.filter((doc) => doc.status !== "attached");
 
@@ -93,6 +97,24 @@ export default function StudentSubmissionDetailPage() {
           {submission.procedure} · Current state: <span className="font-medium">{submission.state}</span>
         </p>
       </div>
+
+      {linkedExceptions.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle>Linked exception effects</CardTitle>
+            <CardDescription>Only approved/applied exceptions modify effective submission governance state.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {linkedExceptions.map((exception) => (
+              <div key={exception.id} className="rounded-md border border-amber-200 bg-white p-3">
+                <p className="font-medium">{exception.id} · {exception.scope} · {exception.state}</p>
+                <p>Requested: {exception.requestedEffect}</p>
+                {exception.appliedEffectSummary && <p className="text-emerald-700">Applied: {exception.appliedEffectSummary}</p>}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
