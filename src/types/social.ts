@@ -27,15 +27,21 @@ export type SocialModerationCase = {
   outcome: "hide" | "remove" | "restrict" | "clear";
 };
 
+export type SocialMapCategory = "accommodation" | "academics" | "bureaucracy" | "daily_living" | "transport";
+
 export type MapLinkedOpinion = {
   id: string;
   placeName: string;
   city: string;
   destinationCountry: string;
   contentType: "recommendation" | "opinion";
+  category: SocialMapCategory;
   rating: number;
   text: string;
+  date: string;
   state: SocialContentState;
   latHint: number;
   lngHint: number;
+  relatedContentId: string;
+  relatedContentHref: string;
 };
