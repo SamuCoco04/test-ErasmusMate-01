@@ -26,7 +26,7 @@ export default function AdminReportsPage() {
             <div key={card.id} className="rounded-lg border bg-white p-3">
               <div className="flex items-center justify-between">
                 <p className="font-medium">{card.title}</p>
-                <Badge className={statusTone[card.status as keyof typeof statusTone]}>{card.status}</Badge>
+                <Badge className={statusTone[card.status]}>{card.status}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">{card.id}</p>
               <p className="mt-2 text-sm text-muted-foreground">{card.detail}</p>

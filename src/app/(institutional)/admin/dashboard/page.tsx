@@ -37,7 +37,7 @@ export default function AdminDashboardPage() {
                 <p className="text-sm text-muted-foreground">{incident.id} · {incident.detail}</p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge className={severityStyle[incident.severity as keyof typeof severityStyle]}>{incident.severity}</Badge>
+                <Badge className={severityStyle[incident.severity]}>{incident.severity}</Badge>
                 <Badge variant="outline">{incident.status}</Badge>
               </div>
             </div>

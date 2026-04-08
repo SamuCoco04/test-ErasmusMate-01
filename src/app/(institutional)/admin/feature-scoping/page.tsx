@@ -26,7 +26,7 @@ export default function AdminFeatureScopingPage() {
             <div key={scope.scopeId} className="rounded-lg border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-medium">{scope.institution} · {scope.destination}</p>
-                <Badge className={stageTone[scope.mobilityStage as keyof typeof stageTone]}>{scope.mobilityStage}</Badge>
+                <Badge className={stageTone[scope.mobilityStage]}>{scope.mobilityStage}</Badge>
               </div>
               <p className="text-sm text-muted-foreground">Population: {scope.userPopulation} · Scope ID: {scope.scopeId}</p>
               <div className="mt-2 flex flex-wrap gap-2 text-sm">

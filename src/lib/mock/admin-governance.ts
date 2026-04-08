@@ -1,3 +1,68 @@
+export type UserStatus = "active" | "restricted" | "suspended";
+export type MobilityStage = "pre_departure" | "during_mobility" | "end_of_mobility";
+export type UserPopulation =
+  | "verified_students"
+  | "students_with_active_mobility"
+  | "alumni_window_30_days";
+export type ModerationDecision = "hide" | "remove" | "restrict" | "clear";
+export type IncidentSeverity = "normal" | "warning" | "high";
+export type IncidentStatus = "operational" | "degraded" | "active";
+export type AuditDomain = "role_assignment" | "moderation" | "feature_scope";
+
+export type RoleAssignment = {
+  userId: string;
+  name: string;
+  institution: string;
+  destinationScope: string[];
+  roles: string[];
+  status: UserStatus;
+  lastUpdatedAt: string;
+};
+
+export type SocialFeatureScope = {
+  scopeId: string;
+  institution: string;
+  destination: string;
+  mobilityStage: MobilityStage;
+  userPopulation: UserPopulation;
+  discoverability: boolean;
+  messaging: boolean;
+  mapExplorer: boolean;
+  recommendations: boolean;
+  updatedAt: string;
+};
+
+export type ModerationCase = {
+  caseId: string;
+  targetType: string;
+  targetLabel: string;
+  reportCount: number;
+  thresholdHidden: boolean;
+  decision: ModerationDecision;
+  decidedBy: string;
+  decidedAt: string;
+  rationale: string;
+};
+
+export type IncidentStatusCard = {
+  id: string;
+  title: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  detail: string;
+};
+
+export type AuditEvent = {
+  eventId: string;
+  occurredAt: string;
+  actor: string;
+  domain: AuditDomain;
+  action: string;
+  target: string;
+  priorStateHash: string;
+  newStateHash: string;
+};
+
 export const governanceKpis = {
   pendingModeration: 7,
   integrationIssues: 2,
@@ -5,7 +70,7 @@ export const governanceKpis = {
   systemUptime: "98.7%",
 };
 
-export const roleAssignments = [
+export const roleAssignments: RoleAssignment[] = [
   {
     userId: "USR-3421",
     name: "Ana Pereira",
@@ -35,7 +100,7 @@ export const roleAssignments = [
   },
 ];
 
-export const socialFeatureScopes = [
+export const socialFeatureScopes: SocialFeatureScope[] = [
   {
     scopeId: "SCOPE-UB-BCN-01",
     institution: "University of Barcelona",
@@ -74,7 +139,7 @@ export const socialFeatureScopes = [
   },
 ];
 
-export const moderationCases = [
+export const moderationCases: ModerationCase[] = [
   {
     caseId: "MOD-2026-117",
     targetType: "recommendation",
@@ -110,7 +175,7 @@ export const moderationCases = [
   },
 ];
 
-export const incidentStatusCards = [
+export const incidentStatusCards: IncidentStatusCard[] = [
   {
     id: "INC-2401",
     title: "University of Lisbon SIS Sync Delay",
@@ -134,7 +199,7 @@ export const incidentStatusCards = [
   },
 ];
 
-export const immutableAuditTimeline = [
+export const immutableAuditTimeline: AuditEvent[] = [
   {
     eventId: "AUD-GOV-77210",
     occurredAt: "2026-04-08 10:09:12",
