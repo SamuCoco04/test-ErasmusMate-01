@@ -7,3 +7,5 @@
 /.pnpm-store
 .env*
 .DS_Store
+package-lock.json
+tsconfig.tsbuildinfo
