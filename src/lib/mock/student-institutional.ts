@@ -135,6 +135,7 @@ export const requiredDocumentsForSubmission: RequiredDocument[] = [
 export const deadlines = [
   {
     id: "DL-301",
+    submissionId: "SUB-2026-0341",
     obligation: "Learning Agreement revision",
     officialDueDate: "2026-03-10",
     effectiveDueDate: "2026-03-12",
@@ -143,6 +144,7 @@ export const deadlines = [
   },
   {
     id: "DL-302",
+    submissionId: "SUB-2026-0402",
     obligation: "Transcript of Records upload",
     officialDueDate: "2026-07-10",
     effectiveDueDate: "2026-07-10",
@@ -151,6 +153,7 @@ export const deadlines = [
   },
   {
     id: "DL-303",
+    submissionId: "SUB-2026-0090",
     obligation: "Grant agreement correction",
     officialDueDate: "2026-02-01",
     effectiveDueDate: "2026-02-01",
@@ -172,6 +175,9 @@ export const exceptions = [
     state: "applied",
     submissionId: "SUB-2026-0341",
     rationale: "Medical appointment conflict with mandatory in-person administration process",
+    requestedEffect: "Extend due date to 2026-03-12",
+    coveredTargetId: "DL-301",
+    appliedEffectSummary: "Deadline effective due date updated to 2026-03-12.",
   },
   {
     id: "EXC-005",
@@ -179,5 +185,7 @@ export const exceptions = [
     state: "in_review",
     submissionId: "SUB-2026-0402",
     rationale: "Host institution transcript issuance delayed by registrar backlog",
+    requestedEffect: "Temporarily waive transcript document obligation pending registrar release",
+    coveredTargetId: "transcript",
   },
 ];
