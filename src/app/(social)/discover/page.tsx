@@ -4,6 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { socialProfiles } from "@/lib/mock/social-support";
 
 export default function DiscoverPage() {
+  // Only surface profiles where consent is active, not revoked, and visibility is erasmus_scope.
+  // Profiles with connections_only or private visibility, or revoked consent, are excluded entirely.
+  const discoverableProfiles = socialProfiles.filter(
+    (p) => p.consent.discoverabilityConsent && !p.consent.consentRevokedAt && p.visibility.profileVisibility === "erasmus_scope",
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -15,49 +21,48 @@ export default function DiscoverPage() {
         <CardHeader>
           <CardTitle>Consent and Visibility Rules</CardTitle>
           <CardDescription>
-            Profiles are shown only when discoverability consent is enabled and visibility allows Erasmus-scope discovery.
+            Profiles are shown only when discoverability consent is enabled, consent has not been revoked, and visibility is set to Erasmus-scope.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          {socialProfiles.map((profile) => {
-            const discoverable = profile.consent.discoverabilityConsent && profile.visibility.profileVisibility !== "private";
-            const contactable =
-              profile.consent.contactabilityConsent && profile.visibility.directContactExposed && profile.visibility.profileVisibility !== "private";
+          {discoverableProfiles.length === 0 ? (
+            <p className="text-muted-foreground">No discoverable profiles available.</p>
+          ) : (
+            discoverableProfiles.map((profile) => {
+              const contactable = profile.consent.contactabilityConsent && profile.visibility.directContactExposed;
 
-            return (
-              <div key={profile.id} className="space-y-3 rounded-md border bg-white p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-slate-900">{profile.name}</p>
-                    <p className="text-muted-foreground">{profile.homeInstitution}</p>
+              return (
+                <div key={profile.id} className="space-y-3 rounded-md border bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-slate-900">{profile.name}</p>
+                      <p className="text-muted-foreground">{profile.homeInstitution}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge variant="default">Discoverable</Badge>
+                      <Badge variant={contactable ? "default" : "secondary"}>{contactable ? "Contactable" : "Contact locked"}</Badge>
+                    </div>
                   </div>
+                  <p className="text-muted-foreground">Destination: {profile.destinationCity}</p>
+                  <p className="text-muted-foreground">Interests: {profile.interests.join(", ")}</p>
                   <div className="flex gap-2">
-                    <Badge variant={discoverable ? "default" : "secondary"}>{discoverable ? "Discoverable" : "Not discoverable"}</Badge>
-                    <Badge variant={contactable ? "default" : "secondary"}>{contactable ? "Contactable" : "Contact locked"}</Badge>
+                    <Button size="sm" variant="outline">
+                      View profile
+                    </Button>
+                    <Button size="sm" disabled={!contactable}>
+                      Request connection
+                    </Button>
+                    <Button size="sm" variant="outline">
+                      Report
+                    </Button>
+                    <Button size="sm" variant="outline">
+                      Block
+                    </Button>
                   </div>
                 </div>
-                <p className="text-muted-foreground">Destination: {profile.destinationCity}</p>
-                <p className="text-muted-foreground">Interests: {profile.interests.join(", ")}</p>
-                {profile.consent.consentRevokedAt ? (
-                  <p className="text-xs text-amber-700">Consent revoked at {profile.consent.consentRevokedAt}; profile remains hidden from discovery.</p>
-                ) : null}
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" disabled={!discoverable}>
-                    View profile
-                  </Button>
-                  <Button size="sm" disabled={!contactable}>
-                    Request connection
-                  </Button>
-                  <Button size="sm" variant="outline">
-                    Report
-                  </Button>
-                  <Button size="sm" variant="outline">
-                    Block
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </CardContent>
       </Card>
     </div>

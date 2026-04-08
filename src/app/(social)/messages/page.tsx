@@ -14,7 +14,7 @@ export default function MessagesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Thread Access Control</CardTitle>
-          <CardDescription>Threads in pending, blocked, rejected, or closed states are read-only and cannot send new messages.</CardDescription>
+          <CardDescription>Only threads with accepted connections can send new messages; all other states are read-only.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {messageThreads.map((thread) => {

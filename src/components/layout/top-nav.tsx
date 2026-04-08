@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { institutionalMenus } from "@/lib/mock/navigation";
+import { institutionalMenus, socialMenus } from "@/lib/mock/navigation";
 import { roleOptions } from "@/lib/mock/session";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/providers/session-provider";
@@ -15,6 +15,7 @@ export function TopNav() {
   const { role, setRole, name } = useSession();
 
   const institutionalHref = institutionalMenus[role][0].href;
+  const socialPaths = Array.from(new Set(Object.values(socialMenus).flatMap((items) => items.map((item) => item.href))));
   const tabs = [
     { label: role === "Student" ? "My Mobility" : "Mobility Management", href: institutionalHref, section: "institutional" as const },
     { label: "Community", href: "/discover", section: "social" as const },
@@ -32,11 +33,7 @@ export function TopNav() {
               const active =
                 tab.section === "institutional"
                   ? pathname.startsWith("/student") || pathname.startsWith("/dashboard") || pathname.startsWith("/coordinator") || pathname.startsWith("/admin")
-                  : pathname.startsWith("/discover") ||
-                    pathname.startsWith("/connections") ||
-                    pathname.startsWith("/messages") ||
-                    pathname.startsWith("/recommendations") ||
-                    pathname.startsWith("/profile");
+                  : socialPaths.some((prefix) => pathname.startsWith(prefix));
               return (
                 <Link key={tab.href} href={tab.href} className={cn("rounded-md px-3 py-1.5 text-sm", active ? "bg-slate-100 font-medium" : "text-muted-foreground")}>
                   {tab.label}
