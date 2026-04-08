@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { reviewDetailBySubmissionId } from "@/lib/mock/coordinator-institutional";
+import { institutionalService } from "@/lib/services/institutional-service";
+import { useInstitutionalStore } from "@/lib/state/institutional-store";
 
 const decisionStyle = {
   approved: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -23,12 +25,22 @@ export default function CoordinatorReviewDetailPage() {
 
   const [rationale, setRationale] = useState("");
   const [decision, setDecision] = useState<Decision | null>(null);
-  const [auditEvents, setAuditEvents] = useState(detail?.auditEvents ?? []);
+  const auditEvents = useInstitutionalStore((store) =>
+    store.auditLog
+      .filter((entry) => entry.submissionId === params.submissionId)
+      .map((entry) => ({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        actor: entry.actorId,
+        action: `${entry.action.replaceAll("_", " ")} (${entry.outcome})${entry.rationale ? `: ${entry.rationale}` : ""}`,
+      })),
+  );
+
+  const sharedSubmissionState = useInstitutionalStore((store) => store.submissions[params.submissionId]?.state);
 
   useEffect(() => {
     setRationale("");
     setDecision(null);
-    setAuditEvents(detail?.auditEvents ?? []);
   }, [params.submissionId, detail]);
 
   const rationaleValid = rationale.trim().length >= 12;
@@ -39,24 +51,26 @@ export default function CoordinatorReviewDetailPage() {
     return <div className="rounded-lg border bg-white p-4">Submission not found in coordinator scope.</div>;
   }
 
-  const addAuditEvent = (action: string) => {
-    setAuditEvents((prev) => [
-      {
-        id: `AUD-${7700 + prev.length + 1}`,
-        timestamp: "2026-03-10 09:45",
-        actor: "Dr. Anna Jensen",
-        action,
-      },
-      ...prev,
-    ]);
-  };
-
   const applyDecision = (nextDecision: Decision) => {
     if (!rationaleValid) {
       return;
     }
+
     setDecision(nextDecision);
-    addAuditEvent(`Decision ${nextDecision} recorded with rationale: ${rationale.trim()}`);
+
+    if (nextDecision === "approved") {
+      institutionalService.reviewApprove(params.submissionId, rationale.trim(), "coordinator:anna-jensen");
+      return;
+    }
+
+    if (nextDecision === "rejected") {
+      institutionalService.reviewReject(params.submissionId, rationale.trim(), "coordinator:anna-jensen");
+      return;
+    }
+
+    if (nextDecision === "reopened") {
+      institutionalService.reviewReopen(params.submissionId, rationale.trim(), "coordinator:anna-jensen");
+    }
   };
 
   return (
@@ -108,7 +122,7 @@ export default function CoordinatorReviewDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle>Review decision</CardTitle>
-          <CardDescription>Approve or reject requires rationale. Reopen and delegate actions create auditable entries.</CardDescription>
+          <CardDescription>Approve or reject requires rationale. Reopen creates auditable entries.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <label className="block text-sm font-medium" htmlFor="rationale">Decision rationale (required)</label>
@@ -123,18 +137,20 @@ export default function CoordinatorReviewDetailPage() {
 
           <div className="flex flex-wrap gap-2">
             <Button disabled={disabledDecision} onClick={() => applyDecision("approved")}>Approve</Button>
-            <Button variant="destructive" disabled={disabledDecision} onClick={() => applyDecision("rejected")}>Reject</Button>
-            <Button variant="outline" onClick={() => { setDecision("reopened"); addAuditEvent("Submission reopened for student resubmission"); }}>Reopen</Button>
-            <Button variant="outline" onClick={() => { setDecision("delegated"); addAuditEvent("Review delegated to Prof. Miguel Torres (backup coordinator)"); }}>Delegate</Button>
+            <Button variant="outline" disabled={disabledDecision} onClick={() => applyDecision("rejected")}>Reject</Button>
+            <Button variant="outline" disabled={disabledDecision} onClick={() => applyDecision("reopened")}>Reopen</Button>
+            <Button variant="outline" onClick={() => setDecision("delegated")}>Delegate</Button>
           </div>
 
           {decision && <Badge className={decisionStyle[decision]}>Latest action: {decision}</Badge>}
+          {sharedSubmissionState && <p className="text-sm text-muted-foreground">Shared state: {sharedSubmissionState}</p>}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Audit event log (mock)</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Audit event log</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
+          {auditEvents.length === 0 && <p className="text-muted-foreground">No shared audit events yet for this submission.</p>}
           {auditEvents.map((event) => (
             <div key={event.id} className="rounded-md border bg-white p-2">
               <p className="font-medium">{event.id} · {event.timestamp}</p>

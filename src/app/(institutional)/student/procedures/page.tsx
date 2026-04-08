@@ -1,10 +1,18 @@
+"use client";
+
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { submissions } from "@/lib/mock/student-institutional";
+import { useInstitutionalStore } from "@/lib/state/institutional-store";
 
 export default function StudentProceduresPage() {
+  const procedures = useInstitutionalStore((store) =>
+    Object.values(store.submissions)
+      .filter((submission) => submission.stage !== "Coordinator review")
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -18,7 +26,7 @@ export default function StudentProceduresPage() {
           <CardDescription>Only published, applicable procedures are shown for this mobility context.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {submissions.map((submission) => (
+          {procedures.map((submission) => (
             <div key={submission.id} className="flex items-center justify-between rounded-lg border bg-white p-3">
               <div>
                 <p className="font-medium">{submission.procedure}</p>

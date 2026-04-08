@@ -1,8 +1,12 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { deadlines } from "@/lib/mock/student-institutional";
+import { useInstitutionalStore } from "@/lib/state/institutional-store";
 
 export default function StudentDeadlinesPage() {
+  const deadlines = useInstitutionalStore((store) => store.deadlines);
+
   return (
     <div className="space-y-6">
       <div>

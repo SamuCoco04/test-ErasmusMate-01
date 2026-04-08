@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { requiredDocumentsForSubmission, submissions } from "@/lib/mock/student-institutional";
+import { institutionalService } from "@/lib/services/institutional-service";
+import { useInstitutionalStore } from "@/lib/state/institutional-store";
 
 const schema = z.object({
   submissionMetadata: z.string().min(10, "Required metadata must include at least 10 characters."),
@@ -21,13 +22,16 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function StudentSubmissionDetailPage() {
-  const [lastAction, setLastAction] = useState<"draft" | "submit" | null>(null);
   const params = useParams<{ submissionId: string }>();
 
-  const submission = submissions.find((item) => item.id === params.submissionId) ?? null;
+  const submission = useInstitutionalStore((store) => store.submissions[params.submissionId] ?? null);
+  const docs = useInstitutionalStore((store) => store.requiredDocsBySubmissionId[params.submissionId] ?? []);
+  const latestAuditEvent = useInstitutionalStore((store) =>
+    store.auditLog.find((entry) => entry.submissionId === params.submissionId) ?? null,
+  );
 
-  const requiredDocs = requiredDocumentsForSubmission.filter((doc) => doc.required);
-  const missingRequiredDocs = requiredDocs.filter((doc) => doc.status === "missing");
+  const requiredDocs = docs.filter((doc) => doc.required);
+  const missingRequiredDocs = requiredDocs.filter((doc) => doc.status !== "attached");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -96,7 +100,7 @@ export default function StudentSubmissionDetailPage() {
           <CardDescription>Final submission is blocked until all mandatory files and metadata are complete.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {requiredDocumentsForSubmission.map((doc) => (
+          {docs.map((doc) => (
             <div key={doc.id} className="rounded-lg border bg-white p-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="font-medium">{doc.title}</p>
@@ -190,7 +194,7 @@ export default function StudentSubmissionDetailPage() {
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    setLastAction("draft");
+                    institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
                   }}
                 >
                   Save draft
@@ -199,22 +203,29 @@ export default function StudentSubmissionDetailPage() {
                   type="button"
                   onClick={async () => {
                     const valid = await form.trigger();
-                    if (valid && !blockedFinalSubmit) {
-                      setLastAction("submit");
+                    if (!valid) {
+                      return;
                     }
+
+                    if (submission.state === "rejected" || submission.state === "reopened") {
+                      institutionalService.resubmitAfterRejection(params.submissionId, form.getValues());
+                      return;
+                    }
+
+                    institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
+                    institutionalService.finalSubmit(params.submissionId);
                   }}
                 >
-                  Final submit
+                  {submission.state === "rejected" || submission.state === "reopened" ? "Resubmit after correction" : "Final submit"}
                 </Button>
               </div>
             </form>
           </Form>
 
-          {lastAction === "draft" && (
-            <p className="mt-3 text-sm text-blue-700">Draft saved. Draft state does not fulfill the official obligation until final submit.</p>
-          )}
-          {lastAction === "submit" && (
-            <p className="mt-3 text-sm text-emerald-700">Submission sent to coordinator review (mock transition to submitted/in_review).</p>
+          {latestAuditEvent && (
+            <p className="mt-3 text-sm text-blue-700">
+              Latest update: {latestAuditEvent.action.replaceAll("_", " ")} ({latestAuditEvent.outcome})
+            </p>
           )}
         </CardContent>
       </Card>
