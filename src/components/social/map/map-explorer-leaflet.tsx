@@ -17,9 +17,9 @@ import type { MapLinkedOpinion, SocialMapCategory } from "@/types/social";
 const SELECT_CLASS = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 const defaultIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl: "/leaflet/marker-icon.png",
+  shadowUrl: "/leaflet/marker-shadow.png",
+  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
@@ -140,6 +140,14 @@ export function MapExplorerLeaflet() {
               Public Erasmus place contexts only. Click a marker to preview it. Markers represent approved content-place
               associations, not student live positions.
             </CardDescription>
+            <p className="text-xs text-muted-foreground">
+              Map tiles are served by{" "}
+              <a href="https://www.openstreetmap.org/copyright" className="underline" target="_blank" rel="noopener noreferrer">
+                OpenStreetMap
+              </a>{" "}
+              — your browser will contact their tile servers. No personal data beyond standard HTTP request metadata (IP,
+              user-agent) is shared.
+            </p>
           </CardHeader>
           <CardContent className="h-[520px] p-0">
             <MapContainer center={[41.3874, 2.1686]} zoom={13} className="h-full w-full" scrollWheelZoom>
