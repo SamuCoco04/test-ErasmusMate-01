@@ -1,25 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { institutionalMenus, socialMenus } from "@/lib/mock/navigation";
+import { institutionalMenus } from "@/lib/mock/navigation";
 import { roleOptions } from "@/lib/mock/session";
-import { cn } from "@/lib/utils";
+import { getRoleHomeRoute, isPathInSection } from "@/lib/navigation/access-policy";
 import { useSession } from "@/lib/providers/session-provider";
+import { cn } from "@/lib/utils";
 
 export function TopNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { role, setRole, name } = useSession();
 
-  const institutionalHref = institutionalMenus[role][0].href;
-  const socialPaths = Array.from(new Set(Object.values(socialMenus).flatMap((items) => items.map((item) => item.href))));
   const tabs = [
-    { label: role === "Student" ? "My Mobility" : "Mobility Management", href: institutionalHref, section: "institutional" as const },
+    {
+      label: role === "Student" ? "My Mobility" : "Mobility Management",
+      href: institutionalMenus[role][0]?.href ?? getRoleHomeRoute(role),
+      section: "institutional" as const,
+    },
     { label: "Community", href: "/discover", section: "social" as const },
   ];
+
+  function handleRoleSwitch(nextRole: (typeof roleOptions)[number]) {
+    setRole(nextRole);
+    router.replace(getRoleHomeRoute(nextRole));
+  }
 
   return (
     <header className="border-b bg-white">
@@ -30,10 +39,7 @@ export function TopNav() {
           </Link>
           <nav className="flex items-center gap-2">
             {tabs.map((tab) => {
-              const active =
-                tab.section === "institutional"
-                  ? pathname.startsWith("/student") || pathname.startsWith("/dashboard") || pathname.startsWith("/coordinator") || pathname.startsWith("/admin")
-                  : socialPaths.some((prefix) => pathname.startsWith(prefix));
+              const active = isPathInSection(pathname, tab.section);
               return (
                 <Link key={tab.href} href={tab.href} className={cn("rounded-md px-3 py-1.5 text-sm", active ? "bg-slate-100 font-medium" : "text-muted-foreground")}>
                   {tab.label}
@@ -49,7 +55,7 @@ export function TopNav() {
           </div>
           <div className="flex gap-1">
             {roleOptions.map((item) => (
-              <Button key={item} type="button" variant={item === role ? "default" : "outline"} size="sm" onClick={() => setRole(item)}>
+              <Button key={item} type="button" variant={item === role ? "default" : "outline"} size="sm" onClick={() => handleRoleSwitch(item)}>
                 {item}
               </Button>
             ))}
