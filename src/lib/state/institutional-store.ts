@@ -382,13 +382,31 @@ export const institutionalStore = {
 
     const docs = state.requiredDocsBySubmissionId[submissionId] ?? [];
     if (!hasRequiredDocs(docs) || !submission.mandatoryMetadataComplete || !submission.validationPassed) {
-      return transitionSubmissionState({
-        submissionId,
-        actorId: "student",
-        action: "final_submit",
-        nextState: "submitted",
-        details: "Mandatory documents, metadata, or validations are incomplete.",
+      setState((prev) => {
+        const current = prev.submissions[submissionId];
+        if (!current) return prev;
+
+        return {
+          ...prev,
+          auditLog: [
+            createAuditEntry({
+              submissionId,
+              actorId: "student",
+              action: "final_submit",
+              outcome: "blocked",
+              previousState: current.state,
+              nextState: current.state,
+              details: "Mandatory documents, metadata, or validations are incomplete.",
+            }),
+            ...prev.auditLog,
+          ],
+        };
       });
+
+      return {
+        outcome: "blocked",
+        details: "Mandatory documents, metadata, or validations are incomplete.",
+      } satisfies InstitutionalActionResult;
     }
 
     return transitionSubmissionState({
@@ -486,8 +504,26 @@ export const institutionalStore = {
     requestedEffect: string;
     coveredTargetId?: string;
   }): InstitutionalActionResult {
+    if (!rationale.trim() || rationale.trim().length < 12) {
+      return { outcome: "blocked", details: "Rationale must be at least 12 characters." } satisfies InstitutionalActionResult;
+    }
+    if (!requestedEffect.trim()) {
+      return { outcome: "blocked", details: "Requested effect is required." } satisfies InstitutionalActionResult;
+    }
+
     if (!state.submissions[submissionId]) {
-      return { outcome: "blocked", details: `Submission ${submissionId} not found.` };
+      setState((prev) =>
+        appendAudit(prev, {
+          submissionId,
+          actorId: "student",
+          action: "exception_request_created",
+          outcome: "blocked",
+          previousState: "none",
+          nextState: "none",
+          details: `Submission ${submissionId} not found.`,
+        }),
+      );
+      return { outcome: "blocked", details: `Submission ${submissionId} not found.` } satisfies InstitutionalActionResult;
     }
 
     setState((prev) => {

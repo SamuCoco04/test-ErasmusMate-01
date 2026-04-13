@@ -16,6 +16,8 @@ const decisionStyle = {
   reopened: "bg-amber-100 text-amber-800 border-amber-200",
 };
 
+const COORDINATOR_ID = "coord-anna-jensen";
+
 type Decision = "approved" | "rejected" | "reopened";
 
 export default function CoordinatorReviewDetailPage() {
@@ -41,7 +43,7 @@ export default function CoordinatorReviewDetailPage() {
     if (!rationaleValid || mutation.isPending) return;
 
     const response = await mutation
-      .mutateAsync({ decision: nextDecision, rationale: rationale.trim(), coordinatorId: "coordinator:anna-jensen" })
+      .mutateAsync({ decision: nextDecision, rationale: rationale.trim(), coordinatorId: COORDINATOR_ID })
       .catch((error: Error) => {
         setBanner({ type: "error", message: error.message });
         return null;
@@ -81,7 +83,7 @@ export default function CoordinatorReviewDetailPage() {
               variant="outline"
               disabled={submission.state !== "submitted"}
               onClick={() => {
-                const result = institutionalService.startReview(submission.id, "coordinator:anna-jensen");
+                const result = institutionalService.startReview(submission.id, COORDINATOR_ID);
                 setBanner({ type: result.outcome === "success" ? "success" : "error", message: result.details });
               }}
             >
