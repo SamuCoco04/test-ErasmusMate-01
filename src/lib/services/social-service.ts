@@ -1,4 +1,5 @@
-import { USE_API } from "@/lib/config/feature-flags";
+import { SOCIAL_API_ENABLED } from "@/lib/config/feature-flags";
+import type { ApiMutationResponse } from "@/lib/server/schemas/http";
 import { patchApi, postApi } from "@/lib/services/api-client";
 import { socialContentStore, type ErasmusRelevantCategory, type SocialContentType } from "@/lib/state/social-content-store";
 import { socialStore, type ReportTargetType } from "@/lib/state/social-store";
@@ -30,69 +31,108 @@ type EditSocialContentInput = {
   body?: string;
 };
 
+const successResult = (details: string, data?: unknown): ApiMutationResponse => ({
+  outcome: "success",
+  details,
+  data,
+});
+
+const blockedResult = (details: string): ApiMutationResponse => ({
+  outcome: "blocked",
+  details,
+});
+
+async function runSocialMutationWithFallback(
+  apiCall: () => Promise<ApiMutationResponse>,
+  fallback: () => void | ApiMutationResponse | unknown,
+  fallbackDetails: string,
+): Promise<ApiMutationResponse> {
+  if (!SOCIAL_API_ENABLED) {
+    try {
+      const data = fallback();
+      return successResult(fallbackDetails, data);
+    } catch (error) {
+      return blockedResult(error instanceof Error ? error.message : "Fallback mutation failed.");
+    }
+  }
+
+  const response = await apiCall();
+  if (response.outcome === "success") {
+    return response;
+  }
+
+  try {
+    const data = fallback();
+    return successResult(`Social API fallback applied: ${response.details}. ${fallbackDetails}`, data);
+  } catch (error) {
+    return blockedResult(error instanceof Error ? error.message : "Fallback mutation failed.");
+  }
+}
+
 export const socialService = {
   // Connection lifecycle
   async sendConnectionRequest(targetProfileId: string) {
-    if (USE_API) {
-      const result = await postApi("/api/social/connections/request", {
+    return runSocialMutationWithFallback(
+      () =>
+        postApi("/api/social/connections/request", {
         requesterProfileId: socialStore.getState().actorProfileId,
         recipientProfileId: targetProfileId,
-      });
-      if (result.outcome === "success") socialStore.sendConnectionRequest(targetProfileId);
-      return result;
-    }
-    socialStore.sendConnectionRequest(targetProfileId);
+        }),
+      () => socialStore.sendConnectionRequest(targetProfileId),
+      "Connection request stored in mock social state.",
+    );
   },
   async acceptConnection(connectionId: string) {
-    if (USE_API) {
-      const result = await postApi(`/api/social/connections/${connectionId}/respond`, {
+    return runSocialMutationWithFallback(
+      () =>
+        postApi(`/api/social/connections/${connectionId}/respond`, {
         actorProfileId: socialStore.getState().actorProfileId,
         action: "accepted",
-      });
-      if (result.outcome === "success") socialStore.acceptConnection(connectionId);
-      return result;
-    }
-    socialStore.acceptConnection(connectionId);
+        }),
+      () => socialStore.acceptConnection(connectionId),
+      "Connection accepted in mock social state.",
+    );
   },
   async rejectConnection(connectionId: string) {
-    if (USE_API) {
-      const result = await postApi(`/api/social/connections/${connectionId}/respond`, {
+    return runSocialMutationWithFallback(
+      () =>
+        postApi(`/api/social/connections/${connectionId}/respond`, {
         actorProfileId: socialStore.getState().actorProfileId,
         action: "rejected",
-      });
-      if (result.outcome === "success") socialStore.rejectConnection(connectionId);
-      return result;
-    }
-    socialStore.rejectConnection(connectionId);
+        }),
+      () => socialStore.rejectConnection(connectionId),
+      "Connection rejected in mock social state.",
+    );
   },
   cancelConnection(connectionId: string) {
     socialStore.cancelConnection(connectionId);
   },
   async blockUser(peerId: string, reason: string) {
-    if (USE_API) {
-      const connectionId = socialStore.getState().connections.find((connection) => connection.peerProfileId === peerId)?.id;
-      if (!connectionId) return { outcome: "blocked" as const };
-      const result = await postApi(`/api/social/connections/${connectionId}/block`, {
-        actorProfileId: socialStore.getState().actorProfileId,
-        reason,
-      });
-      if (result.outcome === "success") socialStore.blockUser(peerId, reason);
-      return result;
-    }
-    socialStore.blockUser(peerId, reason);
+    const connectionId = socialStore.getState().connections.find((connection) => connection.peerProfileId === peerId)?.id;
+    if (SOCIAL_API_ENABLED && !connectionId) return blockedResult("No connection found for target profile.");
+
+    return runSocialMutationWithFallback(
+      () =>
+        postApi(`/api/social/connections/${connectionId}/block`, {
+          actorProfileId: socialStore.getState().actorProfileId,
+          reason,
+        }),
+      () => socialStore.blockUser(peerId, reason),
+      "User blocked in mock social state.",
+    );
   },
   async reportEntity(input: { targetType: ReportTargetType; targetId: string; reason: string }) {
-    if (USE_API) {
-      const result = await postApi("/api/social/reports", {
+    return runSocialMutationWithFallback(
+      () =>
+        postApi("/api/social/reports", {
         reporterId: socialStore.getState().actorProfileId,
         targetType: input.targetType,
         targetId: input.targetId,
         reason: input.reason,
-      });
-      if (result.outcome === "success") socialStore.reportEntity(input);
-      return result;
-    }
-    socialStore.reportEntity(input);
+        }),
+      () => socialStore.reportEntity(input),
+      "Social moderation report stored in mock state.",
+    );
   },
   canStartConnectionWith(profileId: string) {
     return socialStore.canStartConnectionWith(profileId);
@@ -103,48 +143,45 @@ export const socialService = {
 
   // Recommendation/opinion lifecycle
   async createContent(input: CreateSocialContentInput) {
-    if (USE_API) {
-      const result = await postApi("/api/social/content", input);
-      if (result.outcome === "success") socialContentStore.createContent(input);
-      return result;
-    }
-    return socialContentStore.createContent(input);
+    return runSocialMutationWithFallback(
+      () => postApi("/api/social/content", input),
+      () => socialContentStore.createContent(input),
+      "Social content created in mock content store.",
+    );
   },
   async editOwnContent(contentId: string, input: EditSocialContentInput) {
-    if (USE_API) {
-      const result = await patchApi(`/api/social/content/${contentId}`, input);
-      if (result.outcome === "success") socialContentStore.editOwnContent(contentId, input);
-      return result;
-    }
-    socialContentStore.editOwnContent(contentId, input);
+    return runSocialMutationWithFallback(
+      () => patchApi(`/api/social/content/${contentId}`, input),
+      () => socialContentStore.editOwnContent(contentId, input),
+      "Social content updated in mock content store.",
+    );
   },
   deleteOwnContent(contentId: string, actorId: string) {
     socialContentStore.deleteOwnContent(contentId, actorId);
   },
   async favorite(contentId: string, userId: string) {
-    if (USE_API) {
-      const result = await postApi(`/api/social/content/${contentId}/favorite`, { userId });
-      if (result.outcome === "success") socialContentStore.addFavorite(contentId, userId);
-      return result;
-    }
-    socialContentStore.addFavorite(contentId, userId);
+    return runSocialMutationWithFallback(
+      () => postApi(`/api/social/content/${contentId}/favorite`, { userId }),
+      () => socialContentStore.addFavorite(contentId, userId),
+      "Favorite mutation applied in mock content store.",
+    );
   },
   unfavorite(contentId: string, userId: string) {
     socialContentStore.removeFavorite(contentId, userId);
   },
   async reportContent(contentId: string, reason: string, reporterId?: string) {
-    if (USE_API) {
-      const contentItem = socialContentStore.getState().contentItems.find((item) => item.id === contentId);
-      const targetType = contentItem?.type ?? "recommendation";
-      const result = await postApi("/api/social/reports", {
+    const contentItem = socialContentStore.getState().contentItems.find((item) => item.id === contentId);
+    const targetType = contentItem?.type ?? "recommendation";
+    return runSocialMutationWithFallback(
+      () =>
+        postApi("/api/social/reports", {
         reporterId: reporterId ?? socialStore.getState().actorProfileId,
-        targetType,
+          targetType,
         targetId: contentId,
         reason,
-      });
-      if (result.outcome === "success") socialContentStore.reportContent(contentId, reason, reporterId);
-      return result;
-    }
-    socialContentStore.reportContent(contentId, reason, reporterId);
+        }),
+      () => socialContentStore.reportContent(contentId, reason, reporterId),
+      "Social content report stored in mock content store.",
+    );
   },
 };
