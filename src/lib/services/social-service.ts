@@ -34,28 +34,34 @@ export const socialService = {
   // Connection lifecycle
   async sendConnectionRequest(targetProfileId: string) {
     if (USE_API) {
-      return postApi("/api/social/connections/request", {
+      const result = await postApi("/api/social/connections/request", {
         requesterProfileId: socialStore.getState().actorProfileId,
         recipientProfileId: targetProfileId,
       });
+      if (result.outcome === "success") socialStore.sendConnectionRequest(targetProfileId);
+      return result;
     }
     socialStore.sendConnectionRequest(targetProfileId);
   },
   async acceptConnection(connectionId: string) {
     if (USE_API) {
-      return postApi(`/api/social/connections/${connectionId}/respond`, {
+      const result = await postApi(`/api/social/connections/${connectionId}/respond`, {
         actorProfileId: socialStore.getState().actorProfileId,
         action: "accepted",
       });
+      if (result.outcome === "success") socialStore.acceptConnection(connectionId);
+      return result;
     }
     socialStore.acceptConnection(connectionId);
   },
   async rejectConnection(connectionId: string) {
     if (USE_API) {
-      return postApi(`/api/social/connections/${connectionId}/respond`, {
+      const result = await postApi(`/api/social/connections/${connectionId}/respond`, {
         actorProfileId: socialStore.getState().actorProfileId,
         action: "rejected",
       });
+      if (result.outcome === "success") socialStore.rejectConnection(connectionId);
+      return result;
     }
     socialStore.rejectConnection(connectionId);
   },
@@ -65,22 +71,26 @@ export const socialService = {
   async blockUser(peerId: string, reason: string) {
     if (USE_API) {
       const connectionId = socialStore.getState().connections.find((connection) => connection.peerProfileId === peerId)?.id;
-      if (!connectionId) return;
-      return postApi(`/api/social/connections/${connectionId}/block`, {
+      if (!connectionId) return { outcome: "blocked" as const };
+      const result = await postApi(`/api/social/connections/${connectionId}/block`, {
         actorProfileId: socialStore.getState().actorProfileId,
         reason,
       });
+      if (result.outcome === "success") socialStore.blockUser(peerId, reason);
+      return result;
     }
     socialStore.blockUser(peerId, reason);
   },
   async reportEntity(input: { targetType: ReportTargetType; targetId: string; reason: string }) {
     if (USE_API) {
-      return postApi("/api/social/reports", {
+      const result = await postApi("/api/social/reports", {
         reporterId: socialStore.getState().actorProfileId,
         targetType: input.targetType,
         targetId: input.targetId,
         reason: input.reason,
       });
+      if (result.outcome === "success") socialStore.reportEntity(input);
+      return result;
     }
     socialStore.reportEntity(input);
   },
@@ -93,18 +103,30 @@ export const socialService = {
 
   // Recommendation/opinion lifecycle
   async createContent(input: CreateSocialContentInput) {
-    if (USE_API) return postApi("/api/social/content", input);
+    if (USE_API) {
+      const result = await postApi("/api/social/content", input);
+      if (result.outcome === "success") socialContentStore.createContent(input);
+      return result;
+    }
     return socialContentStore.createContent(input);
   },
   async editOwnContent(contentId: string, input: EditSocialContentInput) {
-    if (USE_API) return patchApi(`/api/social/content/${contentId}`, input);
+    if (USE_API) {
+      const result = await patchApi(`/api/social/content/${contentId}`, input);
+      if (result.outcome === "success") socialContentStore.editOwnContent(contentId, input);
+      return result;
+    }
     socialContentStore.editOwnContent(contentId, input);
   },
   deleteOwnContent(contentId: string, actorId: string) {
     socialContentStore.deleteOwnContent(contentId, actorId);
   },
   async favorite(contentId: string, userId: string) {
-    if (USE_API) return postApi(`/api/social/content/${contentId}/favorite`, { userId });
+    if (USE_API) {
+      const result = await postApi(`/api/social/content/${contentId}/favorite`, { userId });
+      if (result.outcome === "success") socialContentStore.addFavorite(contentId, userId);
+      return result;
+    }
     socialContentStore.addFavorite(contentId, userId);
   },
   unfavorite(contentId: string, userId: string) {
@@ -112,12 +134,16 @@ export const socialService = {
   },
   async reportContent(contentId: string, reason: string, reporterId?: string) {
     if (USE_API) {
-      return postApi("/api/social/reports", {
+      const contentItem = socialContentStore.getState().contentItems.find((item) => item.id === contentId);
+      const targetType = contentItem?.type ?? "recommendation";
+      const result = await postApi("/api/social/reports", {
         reporterId: reporterId ?? socialStore.getState().actorProfileId,
-        targetType: "recommendation",
+        targetType,
         targetId: contentId,
         reason,
       });
+      if (result.outcome === "success") socialContentStore.reportContent(contentId, reason, reporterId);
+      return result;
     }
     socialContentStore.reportContent(contentId, reason, reporterId);
   },

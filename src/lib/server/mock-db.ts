@@ -34,10 +34,12 @@ type Connection = {
 type Content = {
   id: string;
   authorId: string;
+  authorName?: string;
   type: "recommendation" | "opinion";
   category: string;
   title: string;
   body: string;
+  placeContext?: unknown;
 };
 
 const db = {
@@ -87,7 +89,7 @@ export const serverMockDb = {
     return ok("Submission reopened.", sub);
   },
   createException(input: Omit<ExceptionRequest, "id" | "state">) {
-    const id = `EXC-${Date.now()}`;
+    const id = `EXC-${crypto.randomUUID()}`;
     const exception = { id, state: "submitted" as const, ...input };
     db.exceptions.set(id, exception);
     return ok("Exception created.", exception);
@@ -100,7 +102,7 @@ export const serverMockDb = {
     return ok(`Exception ${decision}.`, exception);
   },
   createConnection(requesterProfileId: string, recipientProfileId: string) {
-    const id = `CON-${Date.now()}`;
+    const id = `CON-${crypto.randomUUID()}`;
     const connection = { id, requesterProfileId, recipientProfileId, state: "pending" as const };
     db.connections.set(id, connection);
     return ok("Connection request sent.", connection);
@@ -119,7 +121,7 @@ export const serverMockDb = {
     return ok("Connection blocked.", connection);
   },
   createContent(input: Omit<Content, "id">) {
-    const id = `CONT-${Date.now()}`;
+    const id = `CONT-${crypto.randomUUID()}`;
     const content = { id, ...input };
     db.content.set(id, content);
     return ok("Content created.", content);
@@ -137,7 +139,7 @@ export const serverMockDb = {
     return ok("Content favorited.");
   },
   report(reporterId: string, targetType: string, targetId: string, reason: string) {
-    db.reports.unshift({ id: `REP-${Date.now()}`, reporterId, targetType, targetId, reason });
+    db.reports.unshift({ id: `REP-${crypto.randomUUID()}`, reporterId, targetType, targetId, reason });
     return ok("Report created.");
   },
 };

@@ -22,26 +22,46 @@ export const institutionalService = {
     },
   },
   async saveSubmissionDraft(submissionId: string, formPayload: Record<string, unknown>) {
-    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/draft`, { actorId: "student", draftPayload: formPayload });
+    if (USE_API) {
+      const result = await postApi(`/api/institutional/submissions/${submissionId}/draft`, { actorId: "student", draftPayload: formPayload });
+      if (result.outcome === "success") institutionalStore.saveSubmissionDraft(submissionId, formPayload);
+      return result;
+    }
     return institutionalStore.saveSubmissionDraft(submissionId, formPayload);
   },
   async finalSubmit(submissionId: string) {
-    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/submit`);
+    if (USE_API) {
+      const result = await postApi(`/api/institutional/submissions/${submissionId}/submit`);
+      if (result.outcome === "success") institutionalStore.finalSubmit(submissionId);
+      return result;
+    }
     return institutionalStore.finalSubmit(submissionId);
   },
   startReview(submissionId: string, coordinatorId: string) {
     return institutionalStore.startReview(submissionId, coordinatorId);
   },
   async reviewApprove(submissionId: string, rationale: string, coordinatorId: string) {
-    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale });
+    if (USE_API) {
+      const result = await postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale });
+      if (result.outcome === "success") institutionalStore.reviewApprove(submissionId, rationale, coordinatorId);
+      return result;
+    }
     return institutionalStore.reviewApprove(submissionId, rationale, coordinatorId);
   },
   async reviewReject(submissionId: string, rationale: string, coordinatorId: string) {
-    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale });
+    if (USE_API) {
+      const result = await postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale });
+      if (result.outcome === "success") institutionalStore.reviewReject(submissionId, rationale, coordinatorId);
+      return result;
+    }
     return institutionalStore.reviewReject(submissionId, rationale, coordinatorId);
   },
   async reviewReopen(submissionId: string, rationale: string, coordinatorId: string) {
-    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/reopen`, { actorId: coordinatorId, rationale });
+    if (USE_API) {
+      const result = await postApi(`/api/institutional/submissions/${submissionId}/reopen`, { actorId: coordinatorId, rationale });
+      if (result.outcome === "success") institutionalStore.reviewReopen(submissionId, rationale, coordinatorId);
+      return result;
+    }
     return institutionalStore.reviewReopen(submissionId, rationale, coordinatorId);
   },
   resubmitAfterRejection(submissionId: string, correctedPayload: Record<string, unknown>) {
@@ -61,7 +81,7 @@ export const institutionalService = {
     coveredTargetId?: string;
   }) {
     if (USE_API) {
-      return postApi("/api/institutional/exceptions", {
+      const result = await postApi("/api/institutional/exceptions", {
         submissionId,
         requesterId: "student",
         scope,
@@ -69,6 +89,8 @@ export const institutionalService = {
         requestedEffect,
         coveredTargetId,
       });
+      if (result.outcome === "success") institutionalStore.createExceptionRequest({ submissionId, scope, rationale, requestedEffect, coveredTargetId });
+      return result;
     }
     return institutionalStore.createExceptionRequest({ submissionId, scope, rationale, requestedEffect, coveredTargetId });
   },
@@ -76,11 +98,19 @@ export const institutionalService = {
     return institutionalStore.startExceptionReview(exceptionId, coordinatorId);
   },
   async approveException(exceptionId: string, rationale: string, coordinatorId: string) {
-    if (USE_API) return postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale });
+    if (USE_API) {
+      const result = await postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale });
+      if (result.outcome === "success") institutionalStore.approveException(exceptionId, rationale, coordinatorId);
+      return result;
+    }
     return institutionalStore.approveException(exceptionId, rationale, coordinatorId);
   },
   async rejectException(exceptionId: string, rationale: string, coordinatorId: string) {
-    if (USE_API) return postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale });
+    if (USE_API) {
+      const result = await postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale });
+      if (result.outcome === "success") institutionalStore.rejectException(exceptionId, rationale, coordinatorId);
+      return result;
+    }
     return institutionalStore.rejectException(exceptionId, rationale, coordinatorId);
   },
   applyApprovedException(exceptionId: string) {
