@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -33,6 +33,7 @@ export default function StudentSubmissionDetailPage() {
   const linkedExceptions = useInstitutionalStore((store) =>
     store.exceptions.filter((exception) => exception.submissionId === params.submissionId),
   );
+  const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const requiredDocs = docs.filter((doc) => doc.required);
   const missingRequiredDocs = requiredDocs.filter((doc) => doc.status !== "attached");
@@ -114,6 +115,12 @@ export default function StudentSubmissionDetailPage() {
             ))}
           </CardContent>
         </Card>
+      )}
+
+      {banner && (
+        <div className={`rounded-md border p-3 text-sm ${banner.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+          {banner.message}
+        </div>
       )}
 
       <Card>
@@ -216,7 +223,8 @@ export default function StudentSubmissionDetailPage() {
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
+                    const result = institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
+                    setBanner({ type: result.outcome === "success" ? "success" : "error", message: result.details });
                   }}
                 >
                   Save draft
@@ -231,12 +239,14 @@ export default function StudentSubmissionDetailPage() {
                     }
 
                     if (submission.state === "rejected" || submission.state === "reopened") {
-                      institutionalService.resubmitAfterRejection(params.submissionId, form.getValues());
+                      const resubmitResult = institutionalService.resubmitAfterRejection(params.submissionId, form.getValues());
+                      setBanner({ type: resubmitResult.outcome === "success" ? "success" : "error", message: resubmitResult.details });
                       return;
                     }
 
                     institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
-                    institutionalService.finalSubmit(params.submissionId);
+                    const finalResult = institutionalService.finalSubmit(params.submissionId);
+                    setBanner({ type: finalResult.outcome === "success" ? "success" : "error", message: finalResult.details });
                   }}
                 >
                   {submission.state === "rejected" || submission.state === "reopened" ? "Resubmit after correction" : "Final submit"}
@@ -244,6 +254,15 @@ export default function StudentSubmissionDetailPage() {
               </div>
             </form>
           </Form>
+
+          <div className="mt-4 space-y-2">
+            <p className="text-sm font-medium">Immutable submitted snapshots: {submission.submittedVersions.length}</p>
+            {submission.submittedVersions.slice(-3).map((snapshot) => (
+              <p key={snapshot.id} className="text-xs text-muted-foreground">
+                v{snapshot.version} · {new Date(snapshot.submittedAt).toLocaleString()} · actor {snapshot.actorId} · state-at-submit {snapshot.stateAtSubmission}
+              </p>
+            ))}
+          </div>
 
           {latestAuditEvent && (
             <p className="mt-3 text-sm text-blue-700">

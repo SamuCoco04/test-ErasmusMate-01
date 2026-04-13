@@ -7,10 +7,19 @@ import { deadlines, exceptions, requiredDocumentsForSubmission, submissions } fr
 import type { DeadlineState, SubmissionState } from "@/types/institutional";
 
 type FormPayload = Record<string, unknown>;
-
 type ExceptionScope = "deadline" | "document_obligation" | "procedure_condition";
-
 type ExceptionState = "submitted" | "in_review" | "approved" | "rejected" | "applied" | "closed";
+type ActorId = "student" | "system" | string;
+
+type SubmissionSnapshot = {
+  id: string;
+  submissionId: string;
+  version: number;
+  submittedAt: string;
+  actorId: string;
+  stateAtSubmission: SubmissionState;
+  payload: FormPayload;
+};
 
 export type InstitutionalRequiredDocument = {
   id: string;
@@ -35,11 +44,12 @@ export type InstitutionalSubmission = {
   lastPayload?: FormPayload;
   latestDecisionRationale?: string;
   latestDecisionBy?: string;
+  submittedVersions: SubmissionSnapshot[];
 };
 
 export type InstitutionalExceptionTimelineEvent = {
   id: string;
-  type: "request_created" | "review_started" | "approved" | "rejected" | "applied";
+  type: "request_created" | "review_started" | "approved" | "rejected" | "applied" | "closed";
   at: string;
   actorId: string;
   note: string;
@@ -67,8 +77,8 @@ export type InstitutionalAuditEntry = {
   action: string;
   outcome: "success" | "blocked";
   rationale?: string;
-  previousState?: SubmissionState;
-  nextState?: SubmissionState;
+  previousState?: string;
+  nextState?: string;
   details?: string;
 };
 
@@ -88,13 +98,10 @@ export type InstitutionalStoreState = {
   auditLog: InstitutionalAuditEntry[];
 };
 
-export type InstitutionalActionResult = {
-  outcome: "success" | "blocked";
-  details: string;
-};
+export type InstitutionalActionResult = { outcome: "success" | "blocked"; details: string };
 
-const STORAGE_KEY = "erasmusmate.institutional-store.v1";
-
+const STORAGE_KEY = "erasmusmate.institutional-store.v2";
+const nowIso = () => new Date().toISOString();
 const cloneRequiredDocs = () => requiredDocumentsForSubmission.map((doc) => ({ ...doc }));
 
 const initialSubmissions: Record<string, InstitutionalSubmission> = {
@@ -109,6 +116,7 @@ const initialSubmissions: Record<string, InstitutionalSubmission> = {
         state: submission.state,
         mandatoryMetadataComplete: submission.mandatoryMetadataComplete,
         validationPassed: true,
+        submittedVersions: [],
       },
     ]),
   ),
@@ -120,57 +128,32 @@ const initialSubmissions: Record<string, InstitutionalSubmission> = {
         procedure: detail.procedure,
         stage: "Coordinator review",
         dueDate: detail.reviewDeadline,
-        state: "in_review" as SubmissionState,
+        state: "submitted" as SubmissionState,
         mandatoryMetadataComplete: true,
         validationPassed: true,
+        submittedVersions: [],
       },
     ]),
   ),
 };
 
-const nowIso = () => new Date().toISOString();
-
 const mapInitialExceptions = (): InstitutionalException[] =>
   exceptions.map((item, index) => {
     const rawState = item.state as string;
-    const rawScope = item.scope as string;
-
-    const normalizedState: ExceptionState =
-      rawState === "delegated"
-        ? "in_review"
-        : ["submitted", "in_review", "approved", "rejected", "applied", "closed"].includes(rawState)
-          ? (rawState as ExceptionState)
-          : "submitted";
-
-    const normalizedScope: ExceptionScope =
-      rawScope === "signature"
-        ? "procedure_condition"
-        : ["deadline", "document_obligation", "procedure_condition"].includes(rawScope)
-          ? (rawScope as ExceptionScope)
-          : "procedure_condition";
+    const normalizedState: ExceptionState = ["submitted", "in_review", "approved", "rejected", "applied", "closed"].includes(rawState)
+      ? (rawState as ExceptionState)
+      : "submitted";
 
     return {
       id: item.id,
       submissionId: item.submissionId,
       state: normalizedState,
-      scope: normalizedScope,
+      scope: item.scope as ExceptionScope,
       rationale: item.rationale,
-      requestedEffect: "requestedEffect" in item && typeof item.requestedEffect === "string" ? item.requestedEffect : "Institutional exception requested.",
-      coveredTargetId: "coveredTargetId" in item && typeof item.coveredTargetId === "string" ? item.coveredTargetId : undefined,
-      decisionBy: "decisionBy" in item && typeof item.decisionBy === "string" ? item.decisionBy : undefined,
-      decisionRationale:
-        "decisionRationale" in item && typeof item.decisionRationale === "string" ? item.decisionRationale : undefined,
-      appliedEffectSummary:
-        "appliedEffectSummary" in item && typeof item.appliedEffectSummary === "string" ? item.appliedEffectSummary : undefined,
-      timeline: [
-        {
-          id: `EVT-seed-${index + 1}`,
-          type: "request_created",
-          at: nowIso(),
-          actorId: "student",
-          note: "Exception request submitted.",
-        },
-      ],
+      requestedEffect: item.requestedEffect,
+      coveredTargetId: item.coveredTargetId,
+      appliedEffectSummary: "appliedEffectSummary" in item ? item.appliedEffectSummary : undefined,
+      timeline: [{ id: `EVT-seed-${index + 1}`, type: "request_created", at: nowIso(), actorId: "student", note: "Exception request submitted." }],
     };
   });
 
@@ -186,16 +169,14 @@ let state = initialState;
 let hydrated = false;
 const listeners = new Set<() => void>();
 
-const notify = () => {
-  listeners.forEach((listener) => listener());
-};
+const notify = () => listeners.forEach((listener) => listener());
 
 const persistState = () => {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
-    // Ignore persistence failures so in-memory state updates and UI notifications still complete.
+    // Ignore persistence failures.
   }
 };
 
@@ -223,89 +204,106 @@ const createExceptionEvent = (
   note,
 });
 
-const updateSubmission = (
-  submissionId: string,
-  actorId: string,
-  action: string,
-  applyUpdate: (submission: InstitutionalSubmission) => {
-    nextSubmission?: InstitutionalSubmission;
-    outcome: "success" | "blocked";
-    rationale?: string;
-    details?: string;
-  },
-) : InstitutionalActionResult => {
-  let actionResult: InstitutionalActionResult = {
-    outcome: "blocked",
-    details: "Unknown error.",
-  };
+const appendAudit = (
+  prev: InstitutionalStoreState,
+  payload: Omit<InstitutionalAuditEntry, "id" | "timestamp">,
+): InstitutionalStoreState => ({
+  ...prev,
+  auditLog: [createAuditEntry(payload), ...prev.auditLog],
+});
+
+const hasRequiredDocs = (docs: InstitutionalRequiredDocument[]) => docs.filter((doc) => doc.required).every((doc) => doc.status === "attached");
+const parseRequestedDate = (requestedEffect: string): string | null => requestedEffect.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1] ?? null;
+
+const submissionGuards: Partial<Record<SubmissionState, SubmissionState[]>> = {
+  draft: ["submitted"],
+  submitted: ["in_review"],
+  in_review: ["approved", "rejected", "reopened"],
+  rejected: ["resubmitted"],
+  reopened: ["resubmitted"],
+  resubmitted: ["in_review"],
+};
+
+const canTransition = (from: SubmissionState, to: SubmissionState) => (submissionGuards[from] ?? []).includes(to);
+
+const transitionSubmissionState = ({
+  submissionId,
+  actorId,
+  action,
+  nextState,
+  rationale,
+  details,
+  update,
+}: {
+  submissionId: string;
+  actorId: ActorId;
+  action: string;
+  nextState: SubmissionState;
+  rationale?: string;
+  details: string;
+  update?: (submission: InstitutionalSubmission) => InstitutionalSubmission;
+}): InstitutionalActionResult => {
+  let actionResult: InstitutionalActionResult = { outcome: "blocked", details: "Unknown error." };
 
   setState((prev) => {
-    const current = prev.submissions[submissionId];
-    if (!current) {
-      actionResult = {
+    const submission = prev.submissions[submissionId];
+    if (!submission) {
+      actionResult = { outcome: "blocked", details: "Submission not found." };
+      return appendAudit(prev, {
+        submissionId,
+        actorId,
+        action,
         outcome: "blocked",
         details: "Submission not found.",
-      };
-      return {
-        ...prev,
-        auditLog: [
-          createAuditEntry({
-            submissionId,
-            actorId,
-            action,
-            outcome: "blocked",
-            details: "Submission not found.",
-          }),
-          ...prev.auditLog,
-        ],
-      };
+      });
     }
 
-    const result = applyUpdate(current);
-    actionResult = {
-      outcome: result.outcome,
-      details: result.details ?? "Submission action processed.",
-    };
-    const updatedSubmission = result.nextSubmission;
+    if (!canTransition(submission.state, nextState)) {
+      actionResult = { outcome: "blocked", details: `Invalid transition ${submission.state} → ${nextState}.` };
+      return appendAudit(prev, {
+        submissionId,
+        actorId,
+        action,
+        outcome: "blocked",
+        rationale,
+        previousState: submission.state,
+        nextState,
+        details: `Blocked invalid transition ${submission.state} → ${nextState}.`,
+      });
+    }
 
+    const nextSubmission = (update ? update(submission) : submission);
+    const updatedSubmission = { ...nextSubmission, state: nextState };
+
+    actionResult = { outcome: "success", details };
     return {
       ...prev,
-      submissions: updatedSubmission
-        ? {
-            ...prev.submissions,
-            [submissionId]: updatedSubmission,
-          }
-        : prev.submissions,
+      submissions: {
+        ...prev.submissions,
+        [submissionId]: updatedSubmission,
+      },
       auditLog: [
         createAuditEntry({
           submissionId,
           actorId,
           action,
-          outcome: result.outcome,
-          rationale: result.rationale,
-          details: result.details,
-          previousState: current.state,
-          nextState: updatedSubmission?.state,
+          outcome: "success",
+          rationale,
+          previousState: submission.state,
+          nextState,
+          details,
         }),
         ...prev.auditLog,
       ],
     };
   });
+
   return actionResult;
-};
-
-const hasRequiredDocs = (docs: InstitutionalRequiredDocument[]) => docs.filter((doc) => doc.required).every((doc) => doc.status === "attached");
-
-const parseRequestedDate = (requestedEffect: string): string | null => {
-  const match = requestedEffect.match(/\b(\d{4}-\d{2}-\d{2})\b/);
-  return match?.[1] ?? null;
 };
 
 export const institutionalStore = {
   hydrate() {
-    if (hydrated || typeof window === "undefined") {
-      return;
-    }
+    if (hydrated || typeof window === "undefined") return;
 
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -316,7 +314,9 @@ export const institutionalStore = {
           ...parsed,
           submissions: {
             ...initialState.submissions,
-            ...parsed.submissions,
+            ...Object.fromEntries(
+              Object.entries(parsed.submissions ?? {}).map(([id, item]) => [id, { ...item, submittedVersions: item.submittedVersions ?? [] }]),
+            ),
           },
           requiredDocsBySubmissionId: {
             ...initialState.requiredDocsBySubmissionId,
@@ -338,96 +338,157 @@ export const institutionalStore = {
   getState() {
     return state;
   },
-  saveSubmissionDraft(submissionId: string, formPayload: FormPayload) {
-    return updateSubmission(submissionId, "student", "save_submission_draft", (submission) => ({
-      outcome: "success",
-      details: "Draft payload saved.",
-      nextSubmission: {
-        ...submission,
-        state: "draft",
+  saveSubmissionDraft(submissionId: string, formPayload: FormPayload): InstitutionalActionResult {
+    const submission = state.submissions[submissionId];
+    if (!submission) return { outcome: "blocked", details: "Submission not found." } satisfies InstitutionalActionResult;
+    if (!["draft", "rejected", "reopened"].includes(submission.state)) {
+      return { outcome: "blocked", details: `Cannot edit draft while state is ${submission.state}.` } satisfies InstitutionalActionResult;
+    }
+
+    setState((prev) => {
+      const current = prev.submissions[submissionId];
+      if (!current) return prev;
+
+      const updated = {
+        ...current,
+        state: "draft" as SubmissionState,
         lastPayload: { ...formPayload },
         mandatoryMetadataComplete: Boolean(formPayload.submissionMetadata),
-      },
-    }));
-  },
-  finalSubmit(submissionId: string) {
-    const docs = state.requiredDocsBySubmissionId[submissionId] ?? [];
-    return updateSubmission(submissionId, "student", "final_submit", (submission) => {
-      const metadataComplete = submission.mandatoryMetadataComplete;
-      const validationPassed = submission.validationPassed;
-
-      if (!hasRequiredDocs(docs) || !metadataComplete || !validationPassed) {
-        return {
-          outcome: "blocked",
-          details: "Mandatory documents, metadata, or validations are incomplete.",
-        };
-      }
+      };
 
       return {
-        outcome: "success",
-        details: "Submission moved to institutional review queue.",
-        nextSubmission: {
-          ...submission,
-          state: "submitted",
-        },
+        ...prev,
+        submissions: { ...prev.submissions, [submissionId]: updated },
+        auditLog: [
+          createAuditEntry({
+            submissionId,
+            actorId: "student",
+            action: "save_submission_draft",
+            outcome: "success",
+            previousState: current.state,
+            nextState: "draft",
+            details: "Draft payload saved.",
+          }),
+          ...prev.auditLog,
+        ],
       };
     });
+
+    return { outcome: "success", details: "Draft payload saved." } satisfies InstitutionalActionResult;
   },
-  reviewApprove(submissionId: string, rationale: string, coordinatorId: string) {
-    return updateSubmission(submissionId, coordinatorId, "review_approve", (submission) => ({
-      outcome: "success",
-      rationale,
-      nextSubmission: {
-        ...submission,
-        state: "approved",
-        latestDecisionRationale: rationale,
-        latestDecisionBy: coordinatorId,
-      },
-    }));
-  },
-  reviewReject(submissionId: string, rationale: string, coordinatorId: string) {
-    return updateSubmission(submissionId, coordinatorId, "review_reject", (submission) => ({
-      outcome: "success",
-      rationale,
-      nextSubmission: {
-        ...submission,
-        state: "rejected",
-        latestDecisionRationale: rationale,
-        latestDecisionBy: coordinatorId,
-      },
-    }));
-  },
-  reviewReopen(submissionId: string, rationale: string, coordinatorId: string) {
-    return updateSubmission(submissionId, coordinatorId, "review_reopen", (submission) => ({
-      outcome: "success",
-      rationale,
-      nextSubmission: {
-        ...submission,
-        state: "reopened",
-        latestDecisionRationale: rationale,
-        latestDecisionBy: coordinatorId,
-      },
-    }));
-  },
-  resubmitAfterRejection(submissionId: string, correctedPayload: FormPayload) {
-    return updateSubmission(submissionId, "student", "resubmit_after_rejection", (submission) => {
-      if (submission.state !== "rejected" && submission.state !== "reopened") {
+  finalSubmit(submissionId: string): InstitutionalActionResult {
+    const submission = state.submissions[submissionId];
+    if (!submission) return { outcome: "blocked", details: "Submission not found." } satisfies InstitutionalActionResult;
+
+    const docs = state.requiredDocsBySubmissionId[submissionId] ?? [];
+    if (!hasRequiredDocs(docs) || !submission.mandatoryMetadataComplete || !submission.validationPassed) {
+      setState((prev) => {
+        const current = prev.submissions[submissionId];
+        if (!current) return prev;
+
         return {
-          outcome: "blocked",
-          details: "Resubmission allowed only after rejection or reopen decision.",
+          ...prev,
+          auditLog: [
+            createAuditEntry({
+              submissionId,
+              actorId: "student",
+              action: "final_submit",
+              outcome: "blocked",
+              previousState: current.state,
+              nextState: current.state,
+              details: "Mandatory documents, metadata, or validations are incomplete.",
+            }),
+            ...prev.auditLog,
+          ],
         };
-      }
+      });
 
       return {
-        outcome: "success",
-        details: "Corrected payload submitted after coordinator feedback.",
-        nextSubmission: {
-          ...submission,
-          state: "resubmitted",
-          lastPayload: { ...correctedPayload },
-          mandatoryMetadataComplete: Boolean(correctedPayload.submissionMetadata),
-        },
-      };
+        outcome: "blocked",
+        details: "Mandatory documents, metadata, or validations are incomplete.",
+      } satisfies InstitutionalActionResult;
+    }
+
+    return transitionSubmissionState({
+      submissionId,
+      actorId: "student",
+      action: "final_submit",
+      nextState: "submitted",
+      details: "Submission moved to institutional review queue.",
+      update: (item) => ({
+        ...item,
+        submittedVersions: [
+          ...item.submittedVersions,
+          {
+            id: `SNAP-${submissionId}-${item.submittedVersions.length + 1}`,
+            submissionId,
+            version: item.submittedVersions.length + 1,
+            submittedAt: nowIso(),
+            actorId: "student",
+            stateAtSubmission: item.state,
+            payload: structuredClone(item.lastPayload ?? {}),
+          },
+        ],
+      }),
+    });
+  },
+  startReview(submissionId: string, coordinatorId: string): InstitutionalActionResult {
+    return transitionSubmissionState({
+      submissionId,
+      actorId: coordinatorId,
+      action: "review_started",
+      nextState: "in_review",
+      details: "Submission assigned and opened for coordinator review.",
+    });
+  },
+  reviewApprove(submissionId: string, rationale: string, coordinatorId: string): InstitutionalActionResult {
+    if (!rationale.trim()) return { outcome: "blocked", details: "Rationale required for approval decision." };
+    return transitionSubmissionState({
+      submissionId,
+      actorId: coordinatorId,
+      action: "review_approve",
+      nextState: "approved",
+      rationale,
+      details: "Submission approved by coordinator.",
+      update: (item) => ({ ...item, latestDecisionRationale: rationale, latestDecisionBy: coordinatorId }),
+    });
+  },
+  reviewReject(submissionId: string, rationale: string, coordinatorId: string): InstitutionalActionResult {
+    if (!rationale.trim()) return { outcome: "blocked", details: "Rationale required for rejection." };
+    return transitionSubmissionState({
+      submissionId,
+      actorId: coordinatorId,
+      action: "review_reject",
+      nextState: "rejected",
+      rationale,
+      details: "Submission rejected by coordinator.",
+      update: (item) => ({ ...item, latestDecisionRationale: rationale, latestDecisionBy: coordinatorId }),
+    });
+  },
+  reviewReopen(submissionId: string, rationale: string, coordinatorId: string): InstitutionalActionResult {
+    if (!rationale.trim()) return { outcome: "blocked", details: "Rationale required for reopen decision." };
+    return transitionSubmissionState({
+      submissionId,
+      actorId: coordinatorId,
+      action: "review_reopen",
+      nextState: "reopened",
+      rationale,
+      details: "Submission reopened with coordinator rationale.",
+      update: (item) => ({ ...item, latestDecisionRationale: rationale, latestDecisionBy: coordinatorId }),
+    });
+  },
+  resubmitAfterRejection(submissionId: string, correctedPayload: FormPayload): InstitutionalActionResult {
+    return transitionSubmissionState({
+      submissionId,
+      actorId: "student",
+      action: "resubmit_after_rejection",
+      nextState: "resubmitted",
+      details: "Corrected payload submitted after coordinator feedback.",
+      update: (item) => ({
+        ...item,
+        lastPayload: { ...correctedPayload },
+        mandatoryMetadataComplete: Boolean(correctedPayload.submissionMetadata),
+      }),
     });
   },
   createExceptionRequest({
@@ -442,25 +503,30 @@ export const institutionalStore = {
     rationale: string;
     requestedEffect: string;
     coveredTargetId?: string;
-  }) {
-    setState((prev) => {
-      if (!prev.submissions[submissionId]) {
-        return {
-          ...prev,
-          auditLog: [
-            createAuditEntry({
-              submissionId,
-              actorId: "student",
-              action: "exception_request_created",
-              outcome: "blocked",
-              rationale,
-              details: `Blocked: submission ${submissionId} not found in store.`,
-            }),
-            ...prev.auditLog,
-          ],
-        };
-      }
+  }): InstitutionalActionResult {
+    if (!rationale.trim() || rationale.trim().length < 12) {
+      return { outcome: "blocked", details: "Rationale must be at least 12 characters." } satisfies InstitutionalActionResult;
+    }
+    if (!requestedEffect.trim()) {
+      return { outcome: "blocked", details: "Requested effect is required." } satisfies InstitutionalActionResult;
+    }
 
+    if (!state.submissions[submissionId]) {
+      setState((prev) =>
+        appendAudit(prev, {
+          submissionId,
+          actorId: "student",
+          action: "exception_request_created",
+          outcome: "blocked",
+          previousState: "none",
+          nextState: "none",
+          details: `Submission ${submissionId} not found.`,
+        }),
+      );
+      return { outcome: "blocked", details: `Submission ${submissionId} not found.` } satisfies InstitutionalActionResult;
+    }
+
+    setState((prev) => {
       const exceptionId = `EXC-${new Date().getFullYear()}-${String(prev.exceptions.length + 1).padStart(3, "0")}`;
       const newException: InstitutionalException = {
         id: exceptionId,
@@ -483,102 +549,101 @@ export const institutionalStore = {
             action: "exception_request_created",
             outcome: "success",
             rationale,
+            previousState: "none",
+            nextState: "submitted",
             details: `Scope=${scope}; requestedEffect=${requestedEffect}; coveredTargetId=${coveredTargetId ?? "n/a"}`,
           }),
           ...prev.auditLog,
         ],
       };
     });
+
+    return { outcome: "success", details: "Exception submitted for coordinator review." };
   },
-  startExceptionReview(exceptionId: string, coordinatorId: string) {
+  startExceptionReview(exceptionId: string, coordinatorId: string): InstitutionalActionResult {
+    let result: InstitutionalActionResult = { outcome: "blocked", details: "Exception not found." };
+
     setState((prev) => {
       const exception = prev.exceptions.find((item) => item.id === exceptionId);
-      if (!exception) {
-        return prev;
-      }
-
+      if (!exception) return prev;
       if (exception.state !== "submitted") {
-        return {
-          ...prev,
-          auditLog: [
-            createAuditEntry({
-              submissionId: exception.submissionId,
-              actorId: coordinatorId,
-              action: "exception_review_started",
-              outcome: "blocked",
-              details: `Blocked: exception ${exceptionId} is in state '${exception.state}', not 'submitted'.`,
-            }),
-            ...prev.auditLog,
-          ],
-        };
+        result = { outcome: "blocked", details: `Exception ${exceptionId} must be in submitted state.` };
+        return appendAudit(prev, {
+          submissionId: exception.submissionId,
+          actorId: coordinatorId,
+          action: "exception_review_started",
+          outcome: "blocked",
+          previousState: exception.state,
+          nextState: "in_review",
+          details: result.details,
+        });
       }
 
-      const updatedExceptions = prev.exceptions.map((item) =>
-        item.id === exceptionId
-          ? {
-              ...item,
-              state: "in_review" as ExceptionState,
-              decisionBy: coordinatorId,
-              timeline: [...item.timeline, createExceptionEvent("review_started", coordinatorId, "Coordinator started exception review.")],
-            }
-          : item,
-      );
-
+      result = { outcome: "success", details: `Exception ${exceptionId} moved to in_review.` };
       return {
         ...prev,
-        exceptions: updatedExceptions,
+        exceptions: prev.exceptions.map((item) =>
+          item.id === exceptionId
+            ? {
+                ...item,
+                state: "in_review",
+                decisionBy: coordinatorId,
+                timeline: [...item.timeline, createExceptionEvent("review_started", coordinatorId, "Coordinator started exception review.")],
+              }
+            : item,
+        ),
         auditLog: [
           createAuditEntry({
             submissionId: exception.submissionId,
             actorId: coordinatorId,
             action: "exception_review_started",
             outcome: "success",
-            details: `Exception ${exceptionId} entered in_review state.`,
+            previousState: "submitted",
+            nextState: "in_review",
+            details: result.details,
           }),
           ...prev.auditLog,
         ],
       };
     });
+
+    return result;
   },
-  approveException(exceptionId: string, rationale: string, coordinatorId: string) {
+  approveException(exceptionId: string, rationale: string, coordinatorId: string): InstitutionalActionResult {
+    if (!rationale.trim()) return { outcome: "blocked", details: "Rationale required for exception approval." };
+    let result: InstitutionalActionResult = { outcome: "blocked", details: "Exception not found." };
+
     setState((prev) => {
       const exception = prev.exceptions.find((item) => item.id === exceptionId);
-      if (!exception) {
-        return prev;
+      if (!exception) return prev;
+      if (!["submitted", "in_review"].includes(exception.state)) {
+        result = { outcome: "blocked", details: `Exception ${exceptionId} cannot be approved from ${exception.state}.` };
+        return appendAudit(prev, {
+          submissionId: exception.submissionId,
+          actorId: coordinatorId,
+          action: "exception_approved",
+          outcome: "blocked",
+          rationale,
+          previousState: exception.state,
+          nextState: "approved",
+          details: result.details,
+        });
       }
 
-      if (exception.state !== "submitted" && exception.state !== "in_review") {
-        return {
-          ...prev,
-          auditLog: [
-            createAuditEntry({
-              submissionId: exception.submissionId,
-              actorId: coordinatorId,
-              action: "exception_approved",
-              outcome: "blocked",
-              rationale,
-              details: `Blocked: exception ${exceptionId} is in state '${exception.state}', not approvable.`,
-            }),
-            ...prev.auditLog,
-          ],
-        };
-      }
-
-      const updatedExceptions = prev.exceptions.map((item) =>
-        item.id === exceptionId
-          ? {
-              ...item,
-              state: "approved" as ExceptionState,
-              decisionBy: coordinatorId,
-              decisionRationale: rationale,
-              timeline: [...item.timeline, createExceptionEvent("approved", coordinatorId, `Approved: ${rationale}`)],
-            }
-          : item,
-      );
-
+      result = { outcome: "success", details: `Exception ${exceptionId} approved.` };
       return {
         ...prev,
-        exceptions: updatedExceptions,
+        exceptions: prev.exceptions.map((item) =>
+          item.id === exceptionId
+            ? {
+                ...item,
+                state: "approved",
+                decisionBy: coordinatorId,
+                decisionRationale: rationale,
+                timeline: [...item.timeline, createExceptionEvent("approved", coordinatorId, `Approved: ${rationale}`)],
+              }
+            : item,
+        ),
         auditLog: [
           createAuditEntry({
             submissionId: exception.submissionId,
@@ -586,52 +651,52 @@ export const institutionalStore = {
             action: "exception_approved",
             outcome: "success",
             rationale,
-            details: `Exception ${exceptionId} approved for scope ${exception.scope}.`,
+            previousState: exception.state,
+            nextState: "approved",
+            details: result.details,
           }),
           ...prev.auditLog,
         ],
       };
     });
+
+    return result;
   },
-  rejectException(exceptionId: string, rationale: string, coordinatorId: string) {
+  rejectException(exceptionId: string, rationale: string, coordinatorId: string): InstitutionalActionResult {
+    if (!rationale.trim()) return { outcome: "blocked", details: "Rationale required for exception rejection." };
+    let result: InstitutionalActionResult = { outcome: "blocked", details: "Exception not found." };
+
     setState((prev) => {
       const exception = prev.exceptions.find((item) => item.id === exceptionId);
-      if (!exception) {
-        return prev;
+      if (!exception) return prev;
+      if (!["submitted", "in_review"].includes(exception.state)) {
+        result = { outcome: "blocked", details: `Exception ${exceptionId} cannot be rejected from ${exception.state}.` };
+        return appendAudit(prev, {
+          submissionId: exception.submissionId,
+          actorId: coordinatorId,
+          action: "exception_rejected",
+          outcome: "blocked",
+          rationale,
+          previousState: exception.state,
+          nextState: "rejected",
+          details: result.details,
+        });
       }
 
-      if (exception.state !== "submitted" && exception.state !== "in_review") {
-        return {
-          ...prev,
-          auditLog: [
-            createAuditEntry({
-              submissionId: exception.submissionId,
-              actorId: coordinatorId,
-              action: "exception_rejected",
-              outcome: "blocked",
-              rationale,
-              details: `Blocked: exception ${exceptionId} is in state '${exception.state}', not rejectable.`,
-            }),
-            ...prev.auditLog,
-          ],
-        };
-      }
-
-      const updatedExceptions = prev.exceptions.map((item) =>
-        item.id === exceptionId
-          ? {
-              ...item,
-              state: "rejected" as ExceptionState,
-              decisionBy: coordinatorId,
-              decisionRationale: rationale,
-              timeline: [...item.timeline, createExceptionEvent("rejected", coordinatorId, `Rejected: ${rationale}`)],
-            }
-          : item,
-      );
-
+      result = { outcome: "success", details: `Exception ${exceptionId} rejected.` };
       return {
         ...prev,
-        exceptions: updatedExceptions,
+        exceptions: prev.exceptions.map((item) =>
+          item.id === exceptionId
+            ? {
+                ...item,
+                state: "rejected",
+                decisionBy: coordinatorId,
+                decisionRationale: rationale,
+                timeline: [...item.timeline, createExceptionEvent("rejected", coordinatorId, `Rejected: ${rationale}`)],
+              }
+            : item,
+        ),
         auditLog: [
           createAuditEntry({
             submissionId: exception.submissionId,
@@ -639,19 +704,23 @@ export const institutionalStore = {
             action: "exception_rejected",
             outcome: "success",
             rationale,
-            details: `Exception ${exceptionId} rejected.`,
+            previousState: exception.state,
+            nextState: "rejected",
+            details: result.details,
           }),
           ...prev.auditLog,
         ],
       };
     });
+
+    return result;
   },
-  applyApprovedException(exceptionId: string) {
+  applyApprovedException(exceptionId: string): InstitutionalActionResult {
+    let result: InstitutionalActionResult = { outcome: "blocked", details: "Exception not found or not approved." };
+
     setState((prev) => {
       const exception = prev.exceptions.find((item) => item.id === exceptionId);
-      if (!exception || exception.state !== "approved") {
-        return prev;
-      }
+      if (!exception || exception.state !== "approved") return prev;
 
       let updatedDeadlines = prev.deadlines;
       let updatedDocs = prev.requiredDocsBySubmissionId;
@@ -661,16 +730,12 @@ export const institutionalStore = {
 
       if (exception.scope === "deadline") {
         updatedDeadlines = prev.deadlines.map((deadline) => {
-          if (exception.coveredTargetId && deadline.id !== exception.coveredTargetId) {
-            return deadline;
-          }
-          if (!exception.coveredTargetId && deadline.submissionId !== exception.submissionId) {
-            return deadline;
-          }
+          if (exception.coveredTargetId && deadline.id !== exception.coveredTargetId) return deadline;
+          if (!exception.coveredTargetId && deadline.submissionId !== exception.submissionId) return deadline;
 
           const requestedDate = parseRequestedDate(exception.requestedEffect);
-          appliedEffectSummary = `Deadline effective due date updated${requestedDate ? ` to ${requestedDate}` : ""}.`;
           anyEffectApplied = true;
+          appliedEffectSummary = `Deadline effective due date updated${requestedDate ? ` to ${requestedDate}` : ""}.`;
 
           return {
             ...deadline,
@@ -682,27 +747,20 @@ export const institutionalStore = {
       }
 
       if (exception.scope === "document_obligation") {
-        const submissionDocs = prev.requiredDocsBySubmissionId[exception.submissionId] ?? [];
-        let docEffectApplied = false;
-        const updatedSubmissionDocs = submissionDocs.map((doc) => {
-          if (!exception.coveredTargetId || doc.id === exception.coveredTargetId) {
-            if (doc.required) {
-              docEffectApplied = true;
-            }
-            return { ...doc, required: false };
-          }
-          return doc;
-        });
-        if (docEffectApplied) {
-          anyEffectApplied = true;
-        }
+        const docs = prev.requiredDocsBySubmissionId[exception.submissionId] ?? [];
+        let docChanged = false;
         updatedDocs = {
           ...prev.requiredDocsBySubmissionId,
-          [exception.submissionId]: updatedSubmissionDocs,
+          [exception.submissionId]: docs.map((doc) => {
+            if (!exception.coveredTargetId || doc.id === exception.coveredTargetId) {
+              docChanged ||= doc.required;
+              return { ...doc, required: false };
+            }
+            return doc;
+          }),
         };
-        if (docEffectApplied) {
-          appliedEffectSummary = "Covered document obligation marked as waived for this submission only.";
-        }
+        anyEffectApplied ||= docChanged;
+        if (docChanged) appliedEffectSummary = "Covered document obligation marked as waived for this submission only.";
       }
 
       if (exception.scope === "procedure_condition") {
@@ -710,61 +768,104 @@ export const institutionalStore = {
         if (submission) {
           updatedSubmissions = {
             ...prev.submissions,
-            [exception.submissionId]: {
-              ...submission,
-              validationPassed: true,
-            },
+            [exception.submissionId]: { ...submission, validationPassed: true },
           };
-          appliedEffectSummary = "Covered procedure condition constraint marked as satisfied for effective state checks.";
           anyEffectApplied = true;
+          appliedEffectSummary = "Covered procedure condition marked as satisfied for effective state checks.";
         }
       }
 
       if (!anyEffectApplied) {
-        return {
-          ...prev,
-          auditLog: [
-            createAuditEntry({
-              submissionId: exception.submissionId,
-              actorId: "system",
-              action: "exception_applied",
-              outcome: "blocked",
-              details: `Blocked: exception ${exceptionId} scope=${exception.scope} produced no state change (coveredTargetId or submissionId not matched).`,
-            }),
-            ...prev.auditLog,
-          ],
-        };
+        result = { outcome: "blocked", details: `Exception ${exceptionId} produced no state update.` };
+        return appendAudit(prev, {
+          submissionId: exception.submissionId,
+          actorId: "system",
+          action: "exception_applied",
+          outcome: "blocked",
+          previousState: exception.state,
+          nextState: "applied",
+          details: result.details,
+        });
       }
 
-      const updatedExceptions = prev.exceptions.map((item) =>
-        item.id === exceptionId
-          ? {
-              ...item,
-              state: "applied" as ExceptionState,
-              appliedEffectSummary,
-              timeline: [...item.timeline, createExceptionEvent("applied", "system", appliedEffectSummary)],
-            }
-          : item,
-      );
+      result = { outcome: "success", details: `Exception ${exceptionId} applied. ${appliedEffectSummary}` };
 
       return {
         ...prev,
         deadlines: updatedDeadlines,
         requiredDocsBySubmissionId: updatedDocs,
         submissions: updatedSubmissions,
-        exceptions: updatedExceptions,
+        exceptions: prev.exceptions.map((item) =>
+          item.id === exceptionId
+            ? {
+                ...item,
+                state: "applied",
+                appliedEffectSummary,
+                timeline: [...item.timeline, createExceptionEvent("applied", "system", appliedEffectSummary)],
+              }
+            : item,
+        ),
         auditLog: [
           createAuditEntry({
             submissionId: exception.submissionId,
             actorId: "system",
             action: "exception_applied",
             outcome: "success",
-            details: `Exception ${exceptionId} applied for scope ${exception.scope}. ${appliedEffectSummary}`,
+            previousState: "approved",
+            nextState: "applied",
+            details: result.details,
           }),
           ...prev.auditLog,
         ],
       };
-    });  },
+    });
+
+    return result;
+  },
+  closeAppliedException(exceptionId: string, actorId: string): InstitutionalActionResult {
+    let result: InstitutionalActionResult = { outcome: "blocked", details: "Exception not found." };
+
+    setState((prev) => {
+      const exception = prev.exceptions.find((item) => item.id === exceptionId);
+      if (!exception) return prev;
+      if (exception.state !== "applied") {
+        result = { outcome: "blocked", details: `Exception ${exceptionId} can only be closed from applied state.` };
+        return appendAudit(prev, {
+          submissionId: exception.submissionId,
+          actorId,
+          action: "exception_closed",
+          outcome: "blocked",
+          previousState: exception.state,
+          nextState: "closed",
+          details: result.details,
+        });
+      }
+
+      result = { outcome: "success", details: `Exception ${exceptionId} closed.` };
+      return {
+        ...prev,
+        exceptions: prev.exceptions.map((item) =>
+          item.id === exceptionId
+            ? { ...item, state: "closed", timeline: [...item.timeline, createExceptionEvent("closed", actorId, "Exception lifecycle closed.")] }
+            : item,
+        ),
+        auditLog: [
+          createAuditEntry({
+            submissionId: exception.submissionId,
+            actorId,
+            action: "exception_closed",
+            outcome: "success",
+            previousState: "applied",
+            nextState: "closed",
+            details: result.details,
+          }),
+          ...prev.auditLog,
+        ],
+      };
+    });
+
+    return result;
+  },
 };
 
 export const useInstitutionalStore = <T,>(selector: (store: InstitutionalStoreState) => T): T => {
