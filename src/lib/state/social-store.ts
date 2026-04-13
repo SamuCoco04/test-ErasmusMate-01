@@ -104,12 +104,14 @@ const setState = (updater: (prev: SocialStoreState) => SocialStoreState) => {
 
 const nowIso = () => new Date().toISOString();
 
-const resolveConnectionStateForProfile = (snapshot: SocialStoreState, profileId: string): ConnectionState | "none" => {
-  const latest = snapshot.connections
+
+const getLatestConnectionWithProfile = (snapshot: SocialStoreState, profileId: string) =>
+  snapshot.connections
     .filter((connection) => connection.peerProfileId === profileId)
     .sort((a, b) => Date.parse(b.initiatedAt) - Date.parse(a.initiatedAt))[0];
 
-  return latest?.state ?? "none";
+const resolveConnectionStateForProfile = (snapshot: SocialStoreState, profileId: string): ConnectionState | "none" => {
+  return getLatestConnectionWithProfile(snapshot, profileId)?.state ?? "none";
 };
 
 export const getMessagePermissionReason = (connectionState: ConnectionState | "none") => {
@@ -169,10 +171,8 @@ export const socialStore = {
     if (!targetProfile) return;
 
     setState((prev) => {
-      const existing = prev.connections.find(
-        (connection) => connection.peerProfileId === targetProfileId && ["pending", "accepted", "blocked"].includes(connection.state),
-      );
-      if (existing) return prev;
+      const existing = getLatestConnectionWithProfile(prev, targetProfileId);
+      if (existing && ["pending", "accepted", "blocked"].includes(existing.state)) return prev;
 
       return {
         ...prev,
@@ -275,6 +275,13 @@ export const socialStore = {
         ...prev.moderationReports,
       ],
     }));
+  },
+  canStartConnectionWith(profileId: string) {
+    const connectionState = resolveConnectionStateForProfile(state, profileId);
+    return connectionState !== "pending" && connectionState !== "accepted" && connectionState !== "blocked";
+  },
+  canSendMessageToProfile(profileId: string) {
+    return resolveConnectionStateForProfile(state, profileId) === "accepted";
   },
   resolveThreadPermission(threadId: string) {
     const thread = state.threads.find((candidate) => candidate.id === threadId);
