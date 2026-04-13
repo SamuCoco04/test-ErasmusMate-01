@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { socialContentStore, useSocialContentStoreState, type ContentItem, type ErasmusRelevantCategory, type SocialContentType } from "@/lib/state/social-content-store";
+import { socialService } from "@/lib/services/social-service";
+import { useSocialContentStoreState, type ContentItem, type ErasmusRelevantCategory, type SocialContentType } from "@/lib/state/social-content-store";
 
 const CURRENT_USER_ID = "SOC-STU-001";
 const CURRENT_USER_NAME = "Maria Rodriguez";
@@ -69,7 +70,7 @@ export default function RecommendationsPage() {
   const saveContentMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       if (editingItem) {
-        socialContentStore.editOwnContent(editingItem.id, {
+        socialService.editOwnContent(editingItem.id, {
           actorId: CURRENT_USER_ID,
           type: values.type,
           category: values.category,
@@ -84,7 +85,7 @@ export default function RecommendationsPage() {
         return;
       }
 
-      socialContentStore.createContent({
+      socialService.createContent({
         type: values.type,
         authorId: CURRENT_USER_ID,
         authorName: CURRENT_USER_NAME,
@@ -106,19 +107,19 @@ export default function RecommendationsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (contentId: string) => {
-      socialContentStore.deleteOwnContent(contentId, CURRENT_USER_ID);
+      socialService.deleteOwnContent(contentId, CURRENT_USER_ID);
     },
   });
 
   const favoriteMutation = useMutation({
     mutationFn: async (contentId: string) => {
-      socialContentStore.toggleFavorite(contentId, CURRENT_USER_ID);
+      socialService.favorite(contentId, CURRENT_USER_ID);
     },
   });
 
   const reportMutation = useMutation({
     mutationFn: async ({ contentId, reason }: { contentId: string; reason: string }) => {
-      socialContentStore.reportContent(contentId, reason, CURRENT_USER_ID);
+      socialService.reportContent(contentId, reason, CURRENT_USER_ID);
     },
     onSuccess: (_, { contentId }) => {
       setReportReasonById((prev) => {

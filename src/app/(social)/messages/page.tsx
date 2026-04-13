@@ -25,7 +25,7 @@ export default function MessagesPage() {
         <CardContent className="space-y-3">
           {threads.map((thread) => {
             const { connectionState, reason } = socialStore.resolveThreadPermission(thread.id);
-            const canSend = connectionState === "accepted";
+            const canSend = socialService.canSendMessageToProfile(thread.withProfileId);
 
             return (
               <div key={thread.id} className="space-y-2 rounded-md border bg-white p-4 text-sm">

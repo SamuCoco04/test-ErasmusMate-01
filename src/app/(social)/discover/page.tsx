@@ -34,9 +34,8 @@ export default function DiscoverPage() {
           ) : (
             discoverableProfiles.map((profile) => {
               const contactable = profile.consent.contactabilityConsent && profile.visibility.directContactExposed;
-              const activeConnection = connections.find(
-                (connection) => connection.peerProfileId === profile.id && ["pending", "accepted", "blocked"].includes(connection.state),
-              );
+              const activeConnection = connections.find((connection) => connection.peerProfileId === profile.id);
+              const canRequestConnection = socialService.canStartConnectionWith(profile.id);
 
               return (
                 <div key={profile.id} className="space-y-3 rounded-md border bg-white p-4">
@@ -58,10 +57,16 @@ export default function DiscoverPage() {
                     </Button>
                     <Button
                       size="sm"
-                      disabled={!contactable || Boolean(activeConnection)}
+                      disabled={!contactable || !canRequestConnection}
                       onClick={() => socialService.sendConnectionRequest(profile.id)}
                     >
-                      {activeConnection?.state === "pending" ? "Request pending" : activeConnection?.state === "accepted" ? "Connected" : "Request connection"}
+                      {activeConnection?.state === "blocked"
+                        ? "Blocked"
+                        : activeConnection?.state === "pending"
+                          ? "Request pending"
+                          : activeConnection?.state === "accepted"
+                            ? "Connected"
+                            : "Request connection"}
                     </Button>
                     <Button
                       size="sm"
