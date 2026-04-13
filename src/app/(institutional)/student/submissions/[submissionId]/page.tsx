@@ -222,9 +222,13 @@ export default function StudentSubmissionDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    const result = institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
-                    setBanner({ type: result.outcome === "success" ? "success" : "error", message: result.details });
+                  onClick={async () => {
+                    try {
+                      const result = await institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
+                      setBanner({ type: result.outcome === "success" ? "success" : "error", message: result.details });
+                    } catch {
+                      setBanner({ type: "error", message: "Failed to save draft. Please try again." });
+                    }
                   }}
                 >
                   Save draft
@@ -233,20 +237,24 @@ export default function StudentSubmissionDetailPage() {
                   type="button"
                   disabled={blockedFinalSubmit}
                   onClick={async () => {
-                    const valid = await form.trigger();
-                    if (!valid) {
-                      return;
-                    }
+                    try {
+                      const valid = await form.trigger();
+                      if (!valid) {
+                        return;
+                      }
 
-                    if (submission.state === "rejected" || submission.state === "reopened") {
-                      const resubmitResult = institutionalService.resubmitAfterRejection(params.submissionId, form.getValues());
-                      setBanner({ type: resubmitResult.outcome === "success" ? "success" : "error", message: resubmitResult.details });
-                      return;
-                    }
+                      if (submission.state === "rejected" || submission.state === "reopened") {
+                        const resubmitResult = institutionalService.resubmitAfterRejection(params.submissionId, form.getValues());
+                        setBanner({ type: resubmitResult.outcome === "success" ? "success" : "error", message: resubmitResult.details });
+                        return;
+                      }
 
-                    institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
-                    const finalResult = institutionalService.finalSubmit(params.submissionId);
-                    setBanner({ type: finalResult.outcome === "success" ? "success" : "error", message: finalResult.details });
+                      await institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
+                      const finalResult = await institutionalService.finalSubmit(params.submissionId);
+                      setBanner({ type: finalResult.outcome === "success" ? "success" : "error", message: finalResult.details });
+                    } catch {
+                      setBanner({ type: "error", message: "Submission failed. Please try again." });
+                    }
                   }}
                 >
                   {submission.state === "rejected" || submission.state === "reopened" ? "Resubmit after correction" : "Final submit"}
