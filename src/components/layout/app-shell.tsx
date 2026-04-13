@@ -1,9 +1,25 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import { RoleSidebar } from "@/components/layout/role-sidebar";
 import { TopNav } from "@/components/layout/top-nav";
+import { getRoleHomeRoute, isPathAllowedForRole } from "@/lib/navigation/access-policy";
+import { useSession } from "@/lib/providers/session-provider";
 
 export function AppShell({ children, section }: { children: ReactNode; section: "institutional" | "social" }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { role } = useSession();
+
+  useEffect(() => {
+    if (!isPathAllowedForRole(role, pathname)) {
+      router.replace(getRoleHomeRoute(role));
+    }
+  }, [pathname, role, router]);
+
   return (
     <div className="min-h-screen bg-slate-100">
       <TopNav />

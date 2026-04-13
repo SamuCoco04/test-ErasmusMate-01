@@ -4,4 +4,5 @@ export type NavItem = {
   label: string;
   href: string;
   section: "institutional" | "social";
+  activePrefixes?: string[];
 };
