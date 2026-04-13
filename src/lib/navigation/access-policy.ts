@@ -9,13 +9,13 @@ export const roleHomeRoutes: Record<Role, string> = {
 };
 
 export const roleAllowedRoutePrefixes: Record<Role, string[]> = {
-  Student: ["/student", "/discover", "/connections", "/messages", "/recommendations", "/map-explorer", "/profile"],
-  Coordinator: ["/coordinator", "/discover"],
-  Administrator: ["/admin", "/discover"],
+  Student: ["/dashboard", "/student", "/discover", "/connections", "/messages", "/recommendations", "/map-explorer", "/profile"],
+  Coordinator: ["/dashboard", "/coordinator", "/discover"],
+  Administrator: ["/dashboard", "/admin", "/discover"],
 };
 
 export const sectionRoutePrefixes: Record<AppSection, string[]> = {
-  institutional: ["/student", "/coordinator", "/admin"],
+  institutional: ["/dashboard", "/student", "/coordinator", "/admin"],
   social: ["/discover", "/connections", "/messages", "/recommendations", "/map-explorer", "/profile"],
 };
 

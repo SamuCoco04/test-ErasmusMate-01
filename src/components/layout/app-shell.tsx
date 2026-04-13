@@ -14,11 +14,17 @@ export function AppShell({ children, section }: { children: ReactNode; section: 
   const router = useRouter();
   const { role } = useSession();
 
+  const isAllowed = isPathAllowedForRole(role, pathname);
+
   useEffect(() => {
-    if (!isPathAllowedForRole(role, pathname)) {
+    if (!isAllowed) {
       router.replace(getRoleHomeRoute(role));
     }
-  }, [pathname, role, router]);
+  }, [isAllowed, role, router]);
+
+  if (!isAllowed) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-slate-100">
