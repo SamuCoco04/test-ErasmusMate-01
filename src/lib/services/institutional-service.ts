@@ -1,3 +1,5 @@
+import { USE_API } from "@/lib/config/feature-flags";
+import { postApi } from "@/lib/services/api-client";
 import { institutionalStore, type InstitutionalStoreState } from "@/lib/state/institutional-store";
 
 const select = <T,>(selector: (state: InstitutionalStoreState) => T) => selector(institutionalStore.getState());
@@ -19,28 +21,33 @@ export const institutionalService = {
       );
     },
   },
-  saveSubmissionDraft(submissionId: string, formPayload: Record<string, unknown>) {
+  async saveSubmissionDraft(submissionId: string, formPayload: Record<string, unknown>) {
+    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/draft`, { actorId: "student", draftPayload: formPayload });
     return institutionalStore.saveSubmissionDraft(submissionId, formPayload);
   },
-  finalSubmit(submissionId: string) {
+  async finalSubmit(submissionId: string) {
+    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/submit`);
     return institutionalStore.finalSubmit(submissionId);
   },
   startReview(submissionId: string, coordinatorId: string) {
     return institutionalStore.startReview(submissionId, coordinatorId);
   },
-  reviewApprove(submissionId: string, rationale: string, coordinatorId: string) {
+  async reviewApprove(submissionId: string, rationale: string, coordinatorId: string) {
+    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale });
     return institutionalStore.reviewApprove(submissionId, rationale, coordinatorId);
   },
-  reviewReject(submissionId: string, rationale: string, coordinatorId: string) {
+  async reviewReject(submissionId: string, rationale: string, coordinatorId: string) {
+    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale });
     return institutionalStore.reviewReject(submissionId, rationale, coordinatorId);
   },
-  reviewReopen(submissionId: string, rationale: string, coordinatorId: string) {
+  async reviewReopen(submissionId: string, rationale: string, coordinatorId: string) {
+    if (USE_API) return postApi(`/api/institutional/submissions/${submissionId}/reopen`, { actorId: coordinatorId, rationale });
     return institutionalStore.reviewReopen(submissionId, rationale, coordinatorId);
   },
   resubmitAfterRejection(submissionId: string, correctedPayload: Record<string, unknown>) {
     return institutionalStore.resubmitAfterRejection(submissionId, correctedPayload);
   },
-  createExceptionRequest({
+  async createExceptionRequest({
     submissionId,
     scope,
     rationale,
@@ -53,15 +60,27 @@ export const institutionalService = {
     requestedEffect: string;
     coveredTargetId?: string;
   }) {
+    if (USE_API) {
+      return postApi("/api/institutional/exceptions", {
+        submissionId,
+        requesterId: "student",
+        scope,
+        rationale,
+        requestedEffect,
+        coveredTargetId,
+      });
+    }
     return institutionalStore.createExceptionRequest({ submissionId, scope, rationale, requestedEffect, coveredTargetId });
   },
   startExceptionReview(exceptionId: string, coordinatorId: string) {
     return institutionalStore.startExceptionReview(exceptionId, coordinatorId);
   },
-  approveException(exceptionId: string, rationale: string, coordinatorId: string) {
+  async approveException(exceptionId: string, rationale: string, coordinatorId: string) {
+    if (USE_API) return postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale });
     return institutionalStore.approveException(exceptionId, rationale, coordinatorId);
   },
-  rejectException(exceptionId: string, rationale: string, coordinatorId: string) {
+  async rejectException(exceptionId: string, rationale: string, coordinatorId: string) {
+    if (USE_API) return postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale });
     return institutionalStore.rejectException(exceptionId, rationale, coordinatorId);
   },
   applyApprovedException(exceptionId: string) {

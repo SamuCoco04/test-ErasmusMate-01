@@ -8,7 +8,7 @@ import { assertOutcome, withLatency } from "@/lib/query/mutation-helpers";
 export function useSaveSubmissionDraftMutation(submissionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Record<string, unknown>) => withLatency(() => assertOutcome(institutionalService.saveSubmissionDraft(submissionId, payload))),
+    mutationFn: (payload: Record<string, unknown>) => withLatency(async () => assertOutcome(await institutionalService.saveSubmissionDraft(submissionId, payload))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["institutional", "submission", submissionId] });
       queryClient.invalidateQueries({ queryKey: ["institutional", "audit", submissionId] });
@@ -19,7 +19,7 @@ export function useSaveSubmissionDraftMutation(submissionId: string) {
 export function useFinalSubmitMutation(submissionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => withLatency(() => assertOutcome(institutionalService.finalSubmit(submissionId))),
+    mutationFn: () => withLatency(async () => assertOutcome(await institutionalService.finalSubmit(submissionId))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["institutional", "submission", submissionId] });
       queryClient.invalidateQueries({ queryKey: ["institutional", "audit", submissionId] });
@@ -43,10 +43,10 @@ export function useReviewDecisionMutation(submissionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ decision, rationale, coordinatorId }: { decision: "approved" | "rejected" | "reopened"; rationale: string; coordinatorId: string }) =>
-      withLatency(() => {
-        if (decision === "approved") return assertOutcome(institutionalService.reviewApprove(submissionId, rationale, coordinatorId));
-        if (decision === "rejected") return assertOutcome(institutionalService.reviewReject(submissionId, rationale, coordinatorId));
-        return assertOutcome(institutionalService.reviewReopen(submissionId, rationale, coordinatorId));
+      withLatency(async () => {
+        if (decision === "approved") return assertOutcome(await institutionalService.reviewApprove(submissionId, rationale, coordinatorId));
+        if (decision === "rejected") return assertOutcome(await institutionalService.reviewReject(submissionId, rationale, coordinatorId));
+        return assertOutcome(await institutionalService.reviewReopen(submissionId, rationale, coordinatorId));
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["institutional", "submission", submissionId] });

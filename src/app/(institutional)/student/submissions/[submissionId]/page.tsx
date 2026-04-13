@@ -222,8 +222,8 @@ export default function StudentSubmissionDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    const result = institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
+                  onClick={async () => {
+                    const result = await institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
                     setBanner({ type: result.outcome === "success" ? "success" : "error", message: result.details });
                   }}
                 >
@@ -244,8 +244,8 @@ export default function StudentSubmissionDetailPage() {
                       return;
                     }
 
-                    institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
-                    const finalResult = institutionalService.finalSubmit(params.submissionId);
+                    await institutionalService.saveSubmissionDraft(params.submissionId, form.getValues());
+                    const finalResult = await institutionalService.finalSubmit(params.submissionId);
                     setBanner({ type: finalResult.outcome === "success" ? "success" : "error", message: finalResult.details });
                   }}
                 >
