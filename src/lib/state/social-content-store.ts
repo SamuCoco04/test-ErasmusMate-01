@@ -321,6 +321,38 @@ export const socialContentStore = {
       };
     });
   },
+  addFavorite(contentId: string, userId: string) {
+    setState((prev) => {
+      const currentFavorites = prev.favoriteByUser[userId] ?? [];
+      if (currentFavorites.includes(contentId)) return prev;
+      return {
+        ...prev,
+        favoriteByUser: {
+          ...prev.favoriteByUser,
+          [userId]: [...currentFavorites, contentId],
+        },
+        contentItems: prev.contentItems.map((item) =>
+          item.id === contentId ? { ...item, favoritesCount: item.favoritesCount + 1 } : item,
+        ),
+      };
+    });
+  },
+  removeFavorite(contentId: string, userId: string) {
+    setState((prev) => {
+      const currentFavorites = prev.favoriteByUser[userId] ?? [];
+      if (!currentFavorites.includes(contentId)) return prev;
+      return {
+        ...prev,
+        favoriteByUser: {
+          ...prev.favoriteByUser,
+          [userId]: currentFavorites.filter((id) => id !== contentId),
+        },
+        contentItems: prev.contentItems.map((item) =>
+          item.id === contentId ? { ...item, favoritesCount: Math.max(0, item.favoritesCount - 1) } : item,
+        ),
+      };
+    });
+  },
   reportContent(contentId: string, reason: string, reporterId = "SOC-STU-001") {
     const trimmedReason = reason.trim();
     if (!trimmedReason) {

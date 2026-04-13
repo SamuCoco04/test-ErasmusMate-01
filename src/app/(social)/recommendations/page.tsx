@@ -112,8 +112,12 @@ export default function RecommendationsPage() {
   });
 
   const favoriteMutation = useMutation({
-    mutationFn: async (contentId: string) => {
-      socialService.favorite(contentId, CURRENT_USER_ID);
+    mutationFn: async ({ contentId, isFavorite }: { contentId: string; isFavorite: boolean }) => {
+      if (isFavorite) {
+        socialService.unfavorite(contentId, CURRENT_USER_ID);
+      } else {
+        socialService.favorite(contentId, CURRENT_USER_ID);
+      }
     },
   });
 
@@ -273,7 +277,7 @@ export default function RecommendationsPage() {
                 <p className="text-muted-foreground">Author: {item.authorName}</p>
 
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => favoriteMutation.mutate(item.id)} disabled={actionsDisabledByState}>
+                  <Button size="sm" variant="outline" onClick={() => favoriteMutation.mutate({ contentId: item.id, isFavorite })} disabled={actionsDisabledByState}>
                     {isFavorite ? "Unfavorite" : "Favorite"}
                   </Button>
                   <Button

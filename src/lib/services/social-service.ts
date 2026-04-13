@@ -66,10 +66,10 @@ export const socialService = {
     socialContentStore.deleteOwnContent(contentId, actorId);
   },
   favorite(contentId: string, userId: string) {
-    socialContentStore.toggleFavorite(contentId, userId);
+    socialContentStore.addFavorite(contentId, userId);
   },
   unfavorite(contentId: string, userId: string) {
-    socialContentStore.toggleFavorite(contentId, userId);
+    socialContentStore.removeFavorite(contentId, userId);
   },
   reportContent(contentId: string, reason: string, reporterId?: string) {
     socialContentStore.reportContent(contentId, reason, reporterId);

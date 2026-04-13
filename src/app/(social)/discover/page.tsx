@@ -34,7 +34,9 @@ export default function DiscoverPage() {
           ) : (
             discoverableProfiles.map((profile) => {
               const contactable = profile.consent.contactabilityConsent && profile.visibility.directContactExposed;
-              const activeConnection = connections.find((connection) => connection.peerProfileId === profile.id);
+              const activeConnection = connections
+                  .filter((connection) => connection.peerProfileId === profile.id)
+                  .sort((a, b) => Date.parse(b.initiatedAt) - Date.parse(a.initiatedAt))[0];
               const canRequestConnection = socialService.canStartConnectionWith(profile.id);
 
               return (
