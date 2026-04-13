@@ -13,7 +13,7 @@ const COORDINATOR_ID = "coord-anna-jensen";
 
 export default function CoordinatorExceptionDecisionsPage() {
   const exceptions = useInstitutionalStore((store) => store.exceptions);
-  const activeExceptions = exceptions.filter((item) => item.state === "submitted" || item.state === "in_review" || item.state === "approved");
+  const activeExceptions = exceptions.filter((item) => ["submitted", "in_review", "approved", "applied"].includes(item.state));
   const [decisionRationales, setDecisionRationales] = useState<Record<string, string>>({});
 
   return (
@@ -82,6 +82,14 @@ export default function CoordinatorExceptionDecisionsPage() {
                     onClick={() => institutionalService.applyApprovedException(item.id)}
                   >
                     Apply approved exception
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={item.state !== "applied"}
+                    onClick={() => institutionalService.closeAppliedException(item.id, COORDINATOR_ID)}
+                  >
+                    Close applied exception
                   </Button>
                   {rationale.trim().length > 0 && rationale.trim().length < 10 && (
                     <p className="text-xs text-rose-700">Minimum rationale length is 10 characters.</p>
