@@ -104,7 +104,10 @@ export const socialService = {
         actorProfileId: socialStore.getState().actorProfileId,
         action: "accepted",
         }),
-      () => { socialStore.acceptConnection(connectionId); return successResult("Connection accepted in mock social state."); },
+      () => {
+        socialStore.acceptConnection(connectionId);
+        return successResult("Connection accepted in mock social state.");
+      },
     );
   },
   async rejectConnection(connectionId: string) {
@@ -114,7 +117,10 @@ export const socialService = {
         actorProfileId: socialStore.getState().actorProfileId,
         action: "rejected",
         }),
-      () => { socialStore.rejectConnection(connectionId); return successResult("Connection rejected in mock social state."); },
+      () => {
+        socialStore.rejectConnection(connectionId);
+        return successResult("Connection rejected in mock social state.");
+      },
     );
   },
   cancelConnection(connectionId: string) {
@@ -130,7 +136,10 @@ export const socialService = {
           actorProfileId: socialStore.getState().actorProfileId,
           reason,
         }),
-      () => { socialStore.blockUser(peerId, reason); return successResult("User blocked in mock social state."); },
+      () => {
+        socialStore.blockUser(peerId, reason);
+        return successResult("User blocked in mock social state.");
+      },
     );
   },
   async reportEntity(input: { targetType: ReportTargetType; targetId: string; reason: string }) {
@@ -142,7 +151,10 @@ export const socialService = {
         targetId: input.targetId,
         reason: input.reason,
         }),
-      () => { socialStore.reportEntity(input); return successResult("Social moderation report stored in mock state."); },
+      () => {
+        socialStore.reportEntity(input);
+        return successResult("Social moderation report stored in mock state.");
+      },
     );
   },
   canStartConnectionWith(profileId: string) {
@@ -165,7 +177,10 @@ export const socialService = {
   async editOwnContent(contentId: string, input: EditSocialContentInput) {
     return runSocialMutationWithFallback(
       () => patchApi(`/api/social/content/${contentId}`, input),
-      () => { socialContentStore.editOwnContent(contentId, input); return successResult("Social content updated in mock content store."); },
+      () => {
+        socialContentStore.editOwnContent(contentId, input);
+        return successResult("Social content updated in mock content store.");
+      },
     );
   },
   deleteOwnContent(contentId: string, actorId: string) {
@@ -174,7 +189,10 @@ export const socialService = {
   async favorite(contentId: string, userId: string) {
     return runSocialMutationWithFallback(
       () => postApi(`/api/social/content/${contentId}/favorite`, { userId }),
-      () => { socialContentStore.addFavorite(contentId, userId); return successResult("Favorite mutation applied in mock content store."); },
+      () => {
+        socialContentStore.addFavorite(contentId, userId);
+        return successResult("Favorite mutation applied in mock content store.");
+      },
     );
   },
   unfavorite(contentId: string, userId: string) {
@@ -191,7 +209,10 @@ export const socialService = {
         targetId: contentId,
         reason,
         }),
-      () => { socialContentStore.reportContent(contentId, reason, reporterId); return successResult("Social content report stored in mock content store."); },
+      () => {
+        socialContentStore.reportContent(contentId, reason, reporterId);
+        return successResult("Social content report stored in mock content store.");
+      },
     );
   },
 };
