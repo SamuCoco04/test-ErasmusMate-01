@@ -165,15 +165,17 @@ export const socialStore = {
   getState() {
     return state;
   },
-  sendConnectionRequest(targetProfileId: string) {
+  sendConnectionRequest(targetProfileId: string): boolean {
     const targetProfile = socialProfiles.find((profile) => profile.id === targetProfileId);
 
-    if (!targetProfile) return;
+    if (!targetProfile) return false;
 
+    let applied = false;
     setState((prev) => {
       const existing = getLatestConnectionWithProfile(prev, targetProfileId);
       if (existing && ["pending", "accepted", "blocked"].includes(existing.state)) return prev;
 
+      applied = true;
       return {
         ...prev,
         connections: [
@@ -189,6 +191,7 @@ export const socialStore = {
         ],
       };
     });
+    return applied;
   },
   acceptConnection(connectionId: string) {
     setState((prev) => ({
