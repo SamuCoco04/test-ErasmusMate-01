@@ -18,13 +18,20 @@ async function runInstitutionalMutationWithFallback(
     return response;
   }
 
+  const apiDetails = response.details ?? "No additional details provided.";
   const fallbackResult = fallback();
+  if (fallbackResult.outcome !== "success") {
+    return {
+      ...fallbackResult,
+      details: `Institutional API failed (${apiDetails}) and fallback was also ${fallbackResult.outcome}: ${fallbackResult.details}`,
+    };
+  }
   return {
     ...fallbackResult,
-    details: `Institutional API fallback applied: ${response.details}. ${fallbackResult.details}`,
+    details: `Institutional API fallback applied: ${apiDetails}. ${fallbackResult.details}`,
     data: {
       fallbackApplied: true,
-      apiDetails: response.details,
+      apiDetails,
       originalData: response.data,
     },
   };
