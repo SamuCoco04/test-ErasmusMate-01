@@ -3,6 +3,11 @@ ALTER TABLE "ExceptionRequest" ADD COLUMN "appliedAt" DATETIME;
 ALTER TABLE "ExceptionRequest" ADD COLUMN "appliedEffectSummary" TEXT;
 ALTER TABLE "ExceptionRequest" ADD COLUMN "decidedAt" DATETIME;
 
+-- Normalize ModerationReport.targetType to conform with ModerationTargetType enum values
+UPDATE "ModerationReport"
+SET "targetType" = 'social_interaction'
+WHERE "targetType" NOT IN ('social_profile', 'message', 'recommendation', 'opinion', 'social_interaction');
+
 -- RedefineTables
 PRAGMA defer_foreign_keys=ON;
 PRAGMA foreign_keys=OFF;
@@ -19,7 +24,8 @@ CREATE TABLE "new_SocialConnection" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "SocialConnection_requesterProfileId_fkey" FOREIGN KEY ("requesterProfileId") REFERENCES "SocialProfile" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "SocialConnection_recipientProfileId_fkey" FOREIGN KEY ("recipientProfileId") REFERENCES "SocialProfile" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "SocialConnection_recipientProfileId_fkey" FOREIGN KEY ("recipientProfileId") REFERENCES "SocialProfile" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "SocialConnection_blockedByProfileId_fkey" FOREIGN KEY ("blockedByProfileId") REFERENCES "SocialProfile" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 INSERT INTO "new_SocialConnection" ("createdAt", "id", "recipientProfileId", "requesterProfileId", "state", "updatedAt") SELECT "createdAt", "id", "recipientProfileId", "requesterProfileId", "state", "updatedAt" FROM "SocialConnection";
 DROP TABLE "SocialConnection";
@@ -41,7 +47,22 @@ CREATE TABLE "new_SocialContent" (
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "SocialContent_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
-INSERT INTO "new_SocialContent" ("authorId", "body", "category", "createdAt", "id", "state", "title", "type", "updatedAt") SELECT "authorId", "body", "category", "createdAt", "id", "state", "title", "type", "updatedAt" FROM "SocialContent";
+INSERT INTO "new_SocialContent" ("authorId", "body", "category", "createdAt", "id", "state", "title", "type", "updatedAt")
+SELECT
+    "authorId",
+    "body",
+    "category",
+    "createdAt",
+    "id",
+    CASE
+        WHEN "state" = 'published' THEN 'published_visible'
+        WHEN "state" = 'hidden' THEN 'hidden_or_restricted'
+        ELSE "state"
+    END,
+    "title",
+    "type",
+    "updatedAt"
+FROM "SocialContent";
 DROP TABLE "SocialContent";
 ALTER TABLE "new_SocialContent" RENAME TO "SocialContent";
 PRAGMA foreign_keys=ON;

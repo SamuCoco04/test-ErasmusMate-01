@@ -155,11 +155,11 @@ model SubmissionAuditEvent {
 }
 
 model ExceptionRequest {
-  id                   String             @id @default(cuid())
+  id                   String         @id @default(cuid())
   submissionId         String
   requesterId          String
-  state                ExceptionState     @default(submitted)
-  scope                ExceptionScopeType
+  state                ExceptionState @default(submitted)
+  scope                String
   rationale            String
   requestedEffect      String
   decisionRationale    String?
@@ -167,11 +167,11 @@ model ExceptionRequest {
   decidedAt            DateTime?
   appliedAt            DateTime?
   decidedById          String?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  submission           Submission         @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  requester            User               @relation("RequesterExceptions", fields: [requesterId], references: [id], onDelete: Cascade)
-  decidedBy            User?              @relation("DeciderExceptions", fields: [decidedById], references: [id], onDelete: SetNull)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  submission           Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  requester            User           @relation("RequesterExceptions", fields: [requesterId], references: [id], onDelete: Cascade)
+  decidedBy            User?          @relation("DeciderExceptions", fields: [decidedById], references: [id], onDelete: SetNull)
 }
 
 model SocialProfile {
@@ -183,6 +183,7 @@ model SocialProfile {
   user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   outgoingConnections SocialConnection[] @relation("OutgoingConnections")
   incomingConnections SocialConnection[] @relation("IncomingConnections")
+  blockedConnections  SocialConnection[] @relation("BlockedConnections")
   messagesSent        Message[]          @relation("ProfileMessages")
 }
 
@@ -193,6 +194,7 @@ model SocialConnection {
   state               SocialConnectionState    @default(pending)
   messagingPermission MessagingPermissionState @default(not_permitted)
   blockedByProfileId  String?
+  blockedByProfile    SocialProfile?           @relation("BlockedConnections", fields: [blockedByProfileId], references: [id], onDelete: SetNull)
   blockedReason       String?
   respondedAt         DateTime?
   closedAt            DateTime?
