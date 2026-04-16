@@ -1,27 +1,42 @@
-import { NextResponse } from "next/server";
+import { z } from "zod";
 
-import { serverMockDb } from "@/lib/server/mock-db";
+import {
+  blocked,
+  fromUnknownError,
+  invalidJsonResponse,
+  invalidParamsResponse,
+  parseValidationErrors,
+  success,
+} from "@/lib/server/http/response";
 import { socialContentPatchSchema } from "@/lib/server/schemas/social";
+import { socialServerService } from "@/lib/server/services/social-service";
+
+const paramsSchema = z.object({ id: z.string().min(1) });
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  let json: unknown;
+  const parsedParams = paramsSchema.safeParse(params);
+  if (!parsedParams.success) {
+    return invalidParamsResponse();
+  }
 
+  let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return invalidJsonResponse();
   }
 
   const parsedBody = socialContentPatchSchema.safeParse(json);
   if (!parsedBody.success) {
-    return NextResponse.json(
-      { error: "Invalid request body", issues: parsedBody.error.issues },
-      { status: 400 },
-    );
+    return blocked(parseValidationErrors(parsedBody.error.issues), 400);
   }
 
-  const { id } = params;
   const { actorId, ...updates } = parsedBody.data;
-  const result = serverMockDb.patchContent(id, actorId, updates);
-  return NextResponse.json(result, { status: result.outcome === "success" ? 200 : 400 });
+
+  try {
+    const result = socialServerService.patchContent(parsedParams.data.id, actorId, updates);
+    return success(result.details, result.data);
+  } catch (error) {
+    return fromUnknownError(error);
+  }
 }
