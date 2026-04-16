@@ -11,7 +11,7 @@ function assertSocialResult(result: { outcome: "success" | "blocked"; details: s
     throw new DomainError("NOT_FOUND", details);
   }
 
-  if (/only author can edit content/i.test(details)) {
+  if (/only author can edit content|only the connection recipient can respond|only a connection participant can block/i.test(details)) {
     throw new DomainError("FORBIDDEN", details);
   }
 
@@ -39,11 +39,11 @@ export const socialServerService = {
   createConnection(requesterProfileId: string, recipientProfileId: string) {
     return assertSocialResult(serverMockDb.createConnection(requesterProfileId, recipientProfileId));
   },
-  respondConnection(connectionId: string, action: "accepted" | "rejected") {
-    return assertSocialResult(serverMockDb.respondConnection(connectionId, action));
+  respondConnection(connectionId: string, action: "accepted" | "rejected", actorProfileId: string) {
+    return assertSocialResult(serverMockDb.respondConnection(connectionId, action, actorProfileId));
   },
-  blockConnection(connectionId: string, reason: string) {
-    return assertSocialResult(serverMockDb.blockConnection(connectionId, reason));
+  blockConnection(connectionId: string, reason: string, actorProfileId: string) {
+    return assertSocialResult(serverMockDb.blockConnection(connectionId, reason, actorProfileId));
   },
   report(reporterId: string, targetType: string, targetId: string, reason: string) {
     return assertSocialResult(serverMockDb.report(reporterId, targetType, targetId, reason));

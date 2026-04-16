@@ -10,6 +10,7 @@ type Submission = {
   state: SubmissionState;
   draftPayload?: Record<string, unknown>;
   decisionRationale?: string;
+  reviewerId?: string;
 };
 
 type ExceptionRequest = {
@@ -74,18 +75,20 @@ export const serverMockDb = {
     sub.state = "submitted";
     return ok("Submission submitted.", sub);
   },
-  decision(id: string, decision: "approved" | "rejected", rationale: string) {
+  decision(id: string, decision: "approved" | "rejected", rationale: string, actorId: string) {
     const sub = db.submissions.get(id);
     if (!sub) return blocked("Submission not found.");
     sub.state = decision;
     sub.decisionRationale = rationale;
+    sub.reviewerId = actorId;
     return ok(`Submission ${decision}.`, sub);
   },
-  reopen(id: string, rationale: string) {
+  reopen(id: string, rationale: string, actorId: string) {
     const sub = db.submissions.get(id);
     if (!sub) return blocked("Submission not found.");
     sub.state = "reopened";
     sub.decisionRationale = rationale;
+    sub.reviewerId = actorId;
     return ok("Submission reopened.", sub);
   },
   createException(input: Omit<ExceptionRequest, "id" | "state">) {
@@ -107,15 +110,19 @@ export const serverMockDb = {
     db.connections.set(id, connection);
     return ok("Connection request sent.", connection);
   },
-  respondConnection(id: string, action: "accepted" | "rejected") {
+  respondConnection(id: string, action: "accepted" | "rejected", actorProfileId: string) {
     const connection = db.connections.get(id);
     if (!connection) return blocked("Connection not found.");
+    if (connection.recipientProfileId !== actorProfileId) return blocked("Only the connection recipient can respond.");
     connection.state = action;
     return ok(`Connection ${action}.`, connection);
   },
-  blockConnection(id: string, reason: string) {
+  blockConnection(id: string, reason: string, actorProfileId: string) {
     const connection = db.connections.get(id);
     if (!connection) return blocked("Connection not found.");
+    if (connection.requesterProfileId !== actorProfileId && connection.recipientProfileId !== actorProfileId) {
+      return blocked("Only a connection participant can block.");
+    }
     connection.state = "blocked";
     connection.blockedReason = reason;
     return ok("Connection blocked.", connection);

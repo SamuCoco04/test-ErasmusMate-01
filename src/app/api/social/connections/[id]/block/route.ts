@@ -34,7 +34,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   try {
-    const result = socialServerService.blockConnection(parsedParams.data.id, parsedBody.data.reason);
+    const result = socialServerService.blockConnection(parsedParams.data.id, parsedBody.data.reason, parsedBody.data.actorProfileId);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

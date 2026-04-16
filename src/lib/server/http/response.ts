@@ -23,7 +23,7 @@ export const DOMAIN_ERROR_STATUS: Record<DomainError["code"], number> = {
   NOT_FOUND: 404,
   FORBIDDEN: 403,
   CONFLICT: 409,
-  PRECONDITION_FAILED: 422,
+  PRECONDITION_FAILED: 412,
 };
 
 export function success<T>(details: string, data?: T, status = 200) {

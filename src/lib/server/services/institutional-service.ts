@@ -25,11 +25,11 @@ export const institutionalServerService = {
   submit(submissionId: string) {
     return assertInstitutionalResult(serverMockDb.submit(submissionId));
   },
-  decision(submissionId: string, decision: "approved" | "rejected", rationale: string) {
-    return assertInstitutionalResult(serverMockDb.decision(submissionId, decision, rationale));
+  decision(submissionId: string, decision: "approved" | "rejected", rationale: string, actorId: string) {
+    return assertInstitutionalResult(serverMockDb.decision(submissionId, decision, rationale, actorId));
   },
-  reopen(submissionId: string, rationale: string) {
-    return assertInstitutionalResult(serverMockDb.reopen(submissionId, rationale));
+  reopen(submissionId: string, rationale: string, actorId: string) {
+    return assertInstitutionalResult(serverMockDb.reopen(submissionId, rationale, actorId));
   },
   createException(input: {
     submissionId: string;

@@ -31,13 +31,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return blocked(parseValidationErrors(parsedBody.error.issues), 400);
   }
 
-  const { decision, rationale } = parsedBody.data;
-  if (!decision || !rationale) {
-    return blocked("Invalid request body. decision and rationale are required.", 400);
+  const { actorId, decision, rationale } = parsedBody.data;
+  if (!actorId || !decision || !rationale) {
+    return blocked("Invalid request body. actorId, decision and rationale are required.", 400);
   }
 
   try {
-    const result = institutionalServerService.decision(parsedParams.data.id, decision, rationale);
+    const result = institutionalServerService.decision(parsedParams.data.id, decision, rationale, actorId);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);
