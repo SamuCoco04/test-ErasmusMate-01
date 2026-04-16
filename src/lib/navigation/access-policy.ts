@@ -29,8 +29,8 @@ export const roleHomeRoutes: Record<Role, string> = {
 };
 
 export const detailRouteTemplates = {
-  studentSubmissionDetail: "/student/submissions/[id]",
-  coordinatorReviewDetail: "/coordinator/review/[id]",
+  studentSubmissionDetail: "/student/submissions/[submissionId]",
+  coordinatorReviewDetail: "/coordinator/review/[submissionId]",
 } as const;
 
 const detailRouteMatchers: Array<{ regex: RegExp; template: string }> = [

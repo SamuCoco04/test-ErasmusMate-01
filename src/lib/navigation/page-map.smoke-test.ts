@@ -1,8 +1,8 @@
 import { strict as assert } from "node:assert";
 
-import { institutionalMenus, socialMenus } from "../mock/navigation.ts";
-import type { NavItem, Role } from "../mock/types.ts";
-import { detailRouteTemplates, isPathAllowedForRole } from "./access-policy.ts";
+import { institutionalMenus, socialMenus } from "../mock/navigation";
+import type { NavItem, Role } from "../mock/types";
+import { detailRouteTemplates, isPathAllowedForRole } from "./access-policy";
 
 const existingPages: ReadonlySet<string> = new Set([
   "/",
@@ -13,10 +13,10 @@ const existingPages: ReadonlySet<string> = new Set([
   "/student/signatures",
   "/student/deadlines",
   "/student/exceptions",
-  "/student/submissions/[id]",
+  "/student/submissions/[submissionId]",
   "/coordinator/dashboard",
   "/coordinator/review-queue",
-  "/coordinator/review/[id]",
+  "/coordinator/review/[submissionId]",
   "/coordinator/signature-requests",
   "/coordinator/exception-decisions",
   "/coordinator/student-mobilities",
@@ -49,8 +49,8 @@ for (const [role, menuItems] of Object.entries(roleMenus) as Array<[Role, NavIte
 
     for (const prefix of item.activePrefixes ?? []) {
       assert(
-        existingPages.has(prefix) || isPathAllowedForRole(role, prefix),
-        `Active prefix should map to an existing page or an allowed role prefix: ${role} -> ${item.href} -> ${prefix}`,
+        existingPages.has(prefix) || [...existingPages].some((page) => page === prefix || page.startsWith(`${prefix}/`)),
+        `Active prefix does not match any existing page: ${role} -> ${item.href} -> ${prefix}`,
       );
     }
   }
