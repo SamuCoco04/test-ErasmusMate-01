@@ -2,11 +2,28 @@ import {
   blocked,
   fromUnknownError,
   invalidJsonResponse,
+  parseQueryValidationErrors,
   parseValidationErrors,
   success,
 } from "@/lib/server/http/response";
-import { exceptionCreateRequestSchema } from "@/lib/server/schemas/institutional";
+import { exceptionCreateRequestSchema, exceptionListQuerySchema } from "@/lib/server/schemas/institutional";
 import { institutionalServerService } from "@/lib/server/services/institutional-service";
+
+export async function GET(request: Request) {
+  const query = Object.fromEntries(new URL(request.url).searchParams.entries());
+  const parsedQuery = exceptionListQuerySchema.safeParse(query);
+
+  if (!parsedQuery.success) {
+    return blocked(parseQueryValidationErrors(parsedQuery.error.issues), 400);
+  }
+
+  try {
+    const result = await institutionalServerService.listExceptions(parsedQuery.data);
+    return success(result.details, result.data);
+  } catch (error) {
+    return fromUnknownError(error);
+  }
+}
 
 export async function POST(request: Request) {
   let json: unknown;
@@ -23,7 +40,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = institutionalServerService.createException(parsedBody.data);
+    const result = await institutionalServerService.createException(parsedBody.data);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

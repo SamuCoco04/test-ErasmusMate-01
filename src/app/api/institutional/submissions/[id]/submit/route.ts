@@ -12,7 +12,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
   }
 
   try {
-    const result = institutionalServerService.submit(parsedParams.data.id);
+    const result = await institutionalServerService.submit(parsedParams.data.id);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

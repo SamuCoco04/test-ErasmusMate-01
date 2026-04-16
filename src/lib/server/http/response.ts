@@ -59,6 +59,21 @@ export function parseValidationErrors(issues: Array<{ path: PropertyKey[]; messa
   return `Invalid request body. ${message}`;
 }
 
+export function parseQueryValidationErrors(issues: Array<{ path: PropertyKey[]; message: string }>) {
+  if (issues.length === 0) {
+    return "Invalid query parameters.";
+  }
+
+  const message = issues
+    .map((issue) => {
+      if (issue.path.length === 0) return issue.message;
+      return `${issue.path.join(".")}: ${issue.message}`;
+    })
+    .join("; ");
+
+  return `Invalid query parameters. ${message}`;
+}
+
 export function fromDomainError(error: DomainError) {
   return blocked(error.message, DOMAIN_ERROR_STATUS[error.code], error.data);
 }

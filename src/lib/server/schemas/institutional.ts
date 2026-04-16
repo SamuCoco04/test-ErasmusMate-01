@@ -24,3 +24,8 @@ export const exceptionDecisionRequestSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
   rationale: z.string().min(1),
 });
+
+export const exceptionListQuerySchema = z.object({
+  submissionId: z.string().min(1).optional(),
+  state: z.enum(["submitted", "in_review", "approved", "rejected", "applied", "closed", "all"]).optional(),
+});
