@@ -335,13 +335,29 @@ export const useSocialStore = <T,>(
   selector: (snapshot: SocialStoreState) => T,
   isEqual: (left: T, right: T) => boolean = Object.is,
 ): T => {
-  const snapshot = useSocialStoreSnapshot();
-  const selected = selector(snapshot);
-  const selectedRef = useRef(selected);
+  useEffect(() => {
+    socialStore.hydrate();
+  }, []);
 
-  if (!isEqual(selectedRef.current, selected)) {
-    selectedRef.current = selected;
-  }
+  const selectorRef = useRef(selector);
+  const isEqualRef = useRef(isEqual);
+  selectorRef.current = selector;
+  isEqualRef.current = isEqual;
 
-  return selectedRef.current;
+  const cacheRef = useRef<{ hasValue: false } | { hasValue: true; value: T }>({ hasValue: false });
+
+  // Stable getSnapshot: returns the cached value (same reference) when isEqual says
+  // the selected slice is unchanged, so useSyncExternalStore can bail out of the re-render.
+  const getSnapshot = useRef((): T => {
+    const next = selectorRef.current(socialStore.getState());
+    if (cacheRef.current.hasValue && isEqualRef.current(cacheRef.current.value, next)) {
+      return cacheRef.current.value;
+    }
+    cacheRef.current = { hasValue: true, value: next };
+    return next;
+  }).current;
+
+  const getServerSnapshot = useRef((): T => selectorRef.current(initialState)).current;
+
+  return useSyncExternalStore(socialStore.subscribe, getSnapshot, getServerSnapshot);
 };
