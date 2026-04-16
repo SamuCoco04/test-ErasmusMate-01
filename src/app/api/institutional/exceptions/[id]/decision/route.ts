@@ -37,6 +37,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       parsedParams.data.id,
       parsedBody.data.decision,
       parsedBody.data.rationale,
+      parsedBody.data.actorId,
     );
     return success(result.details, result.data);
   } catch (error) {

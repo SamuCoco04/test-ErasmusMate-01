@@ -20,8 +20,15 @@ export const placeContextSchema = z
     label: z.string().min(1).optional(),
     city: z.string().min(1).optional(),
     country: z.string().min(1).optional(),
+    placeName: z.string().min(1).optional(),
+    destinationCountry: z.string().min(1).optional(),
   })
-  .passthrough();
+  .passthrough()
+  .transform((placeContext) => ({
+    ...placeContext,
+    label: placeContext.label ?? placeContext.placeName,
+    country: placeContext.country ?? placeContext.destinationCountry,
+  }));
 
 export const socialContentCreateSchema = z.object({
   authorId: z.string().min(1),
@@ -47,7 +54,7 @@ export const socialFavoriteSchema = z.object({
 });
 
 export const moderationReportSchema = z.object({
-  reporterId: z.string().min(1),
+  reporterProfileId: z.string().min(1),
   targetType: z.enum(["social_profile", "message", "recommendation", "opinion", "social_interaction"]),
   targetId: z.string().min(1),
   reason: z.string().min(1),

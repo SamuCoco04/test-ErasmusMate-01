@@ -2,6 +2,7 @@ import {
   blocked,
   fromUnknownError,
   invalidJsonResponse,
+  parseQueryValidationErrors,
   parseValidationErrors,
   success,
 } from "@/lib/server/http/response";
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
   const parsedQuery = moderationReportListQuerySchema.safeParse(query);
 
   if (!parsedQuery.success) {
-    return blocked(parseValidationErrors(parsedQuery.error.issues), 400);
+    return blocked(parseQueryValidationErrors(parsedQuery.error.issues), 400);
   }
 
   try {
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
 
   try {
     const body = parsedBody.data;
-    const result = await socialServerService.report(body.reporterId, body.targetType, body.targetId, body.reason);
+    const result = await socialServerService.report(body.reporterProfileId, body.targetType, body.targetId, body.reason);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

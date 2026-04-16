@@ -1,4 +1,5 @@
-import type { ModerationTargetType, SocialConnectionState, SocialContentType } from "@prisma/client";
+import type { ModerationTargetType, SocialConnectionState, SocialContentState, SocialContentType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { DomainError } from "@/lib/server/http/response";
 import { prisma } from "@/lib/server/prisma";
@@ -19,6 +20,21 @@ const ensureConnection = async (connectionId: string) => {
     throw new DomainError("NOT_FOUND", "Connection not found.");
   }
   return connection;
+};
+
+const ensureUser = async (userId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new DomainError("NOT_FOUND", "User not found.");
+  }
+  return user;
+};
+
+const translateForeignKeyError = (error: unknown, message: string): never => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+    throw new DomainError("NOT_FOUND", message);
+  }
+  throw error;
 };
 
 export const socialServerService = {
@@ -83,6 +99,7 @@ export const socialServerService = {
 
   async favorite(contentId: string, userId: string): Promise<ServiceResult> {
     await ensureContent(contentId);
+    await ensureUser(userId);
 
     await prisma.favorite.upsert({
       where: { userId_contentId: { userId, contentId } },
@@ -94,16 +111,20 @@ export const socialServerService = {
   },
 
   async createConnection(requesterProfileId: string, recipientProfileId: string): Promise<ServiceResult> {
-    const connection = await prisma.socialConnection.create({
-      data: {
-        requesterProfileId,
-        recipientProfileId,
-        state: "pending",
-        messagingPermission: "not_permitted",
-      },
-    });
+    try {
+      const connection = await prisma.socialConnection.create({
+        data: {
+          requesterProfileId,
+          recipientProfileId,
+          state: "pending",
+          messagingPermission: "not_permitted",
+        },
+      });
 
-    return { outcome: "success", details: "Connection request sent.", data: connection };
+      return { outcome: "success", details: "Connection request sent.", data: connection };
+    } catch (error) {
+      translateForeignKeyError(error, "One or both social profiles not found.");
+    }
   },
 
   async respondConnection(connectionId: string, action: "accepted" | "rejected", actorProfileId: string): Promise<ServiceResult> {
@@ -145,10 +166,15 @@ export const socialServerService = {
     return { outcome: "success", details: "Connection blocked.", data: updated };
   },
 
-  async report(reporterId: string, targetType: string, targetId: string, reason: string): Promise<ServiceResult> {
+  async report(reporterProfileId: string, targetType: string, targetId: string, reason: string): Promise<ServiceResult> {
+    const profile = await prisma.socialProfile.findUnique({ where: { id: reporterProfileId } });
+    if (!profile) {
+      throw new DomainError("NOT_FOUND", "Reporter social profile not found.");
+    }
+
     const created = await prisma.moderationReport.create({
       data: {
-        reporterId,
+        reporterId: profile.userId,
         targetType: targetType as ModerationTargetType,
         targetId,
         reason,
@@ -166,7 +192,7 @@ export const socialServerService = {
         author: {
           select: { id: true, name: true },
         },
-        favorites: true,
+        _count: { select: { favorites: true, reports: true } },
       },
     });
 
@@ -177,12 +203,12 @@ export const socialServerService = {
     return { outcome: "success", details: "Social content read model fetched.", data: content };
   },
 
-  async listContent(filters: { type?: SocialContentType | "all"; category?: string; state?: string; authorId?: string }): Promise<ServiceResult> {
+  async listContent(filters: { type?: SocialContentType | "all"; category?: string; state?: SocialContentState | "all"; authorId?: string }): Promise<ServiceResult> {
     const content = await prisma.socialContent.findMany({
       where: {
         type: filters.type && filters.type !== "all" ? filters.type : undefined,
         category: filters.category,
-        state: filters.state && filters.state !== "all" ? (filters.state as never) : undefined,
+        state: filters.state && filters.state !== "all" ? filters.state : undefined,
         authorId: filters.authorId,
       },
       orderBy: { createdAt: "desc" },

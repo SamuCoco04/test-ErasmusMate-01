@@ -1,9 +1,17 @@
-import type { ExceptionState, Prisma, SubmissionState } from "@prisma/client";
+import type { ExceptionState, SubmissionState } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { DomainError } from "@/lib/server/http/response";
 import { prisma } from "@/lib/server/prisma";
 
 type ServiceResult<T = unknown> = { outcome: "success"; details: string; data?: T };
+
+const translateForeignKeyError = (error: unknown, message: string): never => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+    throw new DomainError("NOT_FOUND", message);
+  }
+  throw error;
+};
 
 const mapSubmission = (submission: {
   id: string;
@@ -91,28 +99,32 @@ export const institutionalServerService = {
   ): Promise<ServiceResult> {
     await ensureSubmission(submissionId);
 
-    const updated = await prisma.submission.update({
-      where: { id: submissionId },
-      data: {
-        state: decision,
-        decisionRationale: rationale,
-        auditEvents: {
-          create: {
-            actorId,
-            eventType: decision === "approved" ? "submission_approved" : "submission_rejected",
-            rationale,
+    try {
+      const updated = await prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          state: decision,
+          decisionRationale: rationale,
+          auditEvents: {
+            create: {
+              actorId,
+              eventType: decision === "approved" ? "submission_approved" : "submission_rejected",
+              rationale,
+            },
           },
         },
-      },
-      include: {
-        auditEvents: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
+        include: {
+          auditEvents: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
         },
-      },
-    });
+      });
 
-    return { outcome: "success", details: `Submission ${decision}.`, data: mapSubmission(updated) };
+      return { outcome: "success", details: `Submission ${decision}.`, data: mapSubmission(updated) };
+    } catch (error) {
+      translateForeignKeyError(error, "Actor user not found.");
+    }
   },
 
   async reopen(submissionId: string, rationale: string, actorId: string): Promise<ServiceResult> {
@@ -151,32 +163,41 @@ export const institutionalServerService = {
   }): Promise<ServiceResult> {
     await ensureSubmission(input.submissionId);
 
-    const created = await prisma.exceptionRequest.create({
-      data: {
-        submissionId: input.submissionId,
-        requesterId: input.requesterId,
-        scope: input.scope,
-        rationale: input.rationale,
-        requestedEffect: input.requestedEffect,
-      },
-    });
+    try {
+      const created = await prisma.exceptionRequest.create({
+        data: {
+          submissionId: input.submissionId,
+          requesterId: input.requesterId,
+          scope: input.scope,
+          rationale: input.rationale,
+          requestedEffect: input.requestedEffect,
+        },
+      });
 
-    return { outcome: "success", details: "Exception created.", data: mapException(created) };
+      return { outcome: "success", details: "Exception created.", data: mapException(created) };
+    } catch (error) {
+      translateForeignKeyError(error, "Requester user not found.");
+    }
   },
 
-  async decideException(exceptionId: string, decision: "approved" | "rejected", rationale: string): Promise<ServiceResult> {
+  async decideException(exceptionId: string, decision: "approved" | "rejected", rationale: string, actorId: string): Promise<ServiceResult> {
     await ensureException(exceptionId);
 
-    const updated = await prisma.exceptionRequest.update({
-      where: { id: exceptionId },
-      data: {
-        state: decision,
-        decisionRationale: rationale,
-        decidedAt: new Date(),
-      },
-    });
+    try {
+      const updated = await prisma.exceptionRequest.update({
+        where: { id: exceptionId },
+        data: {
+          state: decision,
+          decisionRationale: rationale,
+          decidedAt: new Date(),
+          decidedById: actorId,
+        },
+      });
 
-    return { outcome: "success", details: `Exception ${decision}.`, data: mapException(updated) };
+      return { outcome: "success", details: `Exception ${decision}.`, data: mapException(updated) };
+    } catch (error) {
+      translateForeignKeyError(error, "Actor user not found.");
+    }
   },
 
   async getSubmission(submissionId: string): Promise<ServiceResult> {
