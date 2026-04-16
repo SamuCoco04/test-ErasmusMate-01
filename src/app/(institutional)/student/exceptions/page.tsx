@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -11,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { institutionalService } from "@/lib/services/institutional-service";
-import { useInstitutionalStore } from "@/lib/state/institutional-store";
+import { useInstitutionalStoreSnapshot } from "@/lib/state/institutional-store";
 
 const exceptionSchema = z.object({
   submissionId: z.string().min(1, "Submission is required."),
@@ -24,8 +25,9 @@ const exceptionSchema = z.object({
 type ExceptionFormValues = z.infer<typeof exceptionSchema>;
 
 export default function StudentExceptionsPage() {
-  const exceptions = useInstitutionalStore((store) => store.exceptions);
-  const submissions = useInstitutionalStore((store) => Object.values(store.submissions));
+  const snapshot = useInstitutionalStoreSnapshot();
+  const exceptions = snapshot.exceptions;
+  const submissions = useMemo(() => Object.values(snapshot.submissions), [snapshot.submissions]);
 
   const form = useForm<ExceptionFormValues>({
     resolver: zodResolver(exceptionSchema),

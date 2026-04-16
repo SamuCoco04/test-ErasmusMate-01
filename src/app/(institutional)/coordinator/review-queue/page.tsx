@@ -1,16 +1,20 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useInstitutionalStore } from "@/lib/state/institutional-store";
+import { useInstitutionalStoreSnapshot } from "@/lib/state/institutional-store";
 
 export default function CoordinatorReviewQueuePage() {
-  const queue = useInstitutionalStore((store) =>
-    Object.values(store.submissions)
+  const snapshot = useInstitutionalStoreSnapshot();
+  const queue = useMemo(
+    () =>
+      Object.values(snapshot.submissions)
       .filter((item) => ["submitted", "in_review", "resubmitted"].includes(item.state))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+    [snapshot.submissions],
   );
 
   return (

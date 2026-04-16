@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { reviewDetailBySubmissionId } from "@/lib/mock/coordinator-institutional";
 import { deadlines, exceptions, requiredDocumentsForSubmission, submissions } from "@/lib/mock/student-institutional";
@@ -168,8 +168,31 @@ const initialState: InstitutionalStoreState = {
 let state = initialState;
 let hydrated = false;
 const listeners = new Set<() => void>();
+let devCycleGuard = {
+  windowStart: 0,
+  cycles: 0,
+};
 
-const notify = () => listeners.forEach((listener) => listener());
+const DEV_GUARD_WINDOW_MS = 250;
+const DEV_GUARD_THRESHOLD = 25;
+
+const notify = () => {
+  if (process.env.NODE_ENV !== "production") {
+    const now = Date.now();
+    if (now - devCycleGuard.windowStart > DEV_GUARD_WINDOW_MS) {
+      devCycleGuard = { windowStart: now, cycles: 1 };
+    } else {
+      devCycleGuard.cycles += 1;
+      if (devCycleGuard.cycles === DEV_GUARD_THRESHOLD) {
+        console.warn(
+          "[institutional-store] Potential repeated subscription cycle detected. Check selectors for derived arrays/objects created on every callback.",
+        );
+      }
+    }
+  }
+
+  listeners.forEach((listener) => listener());
+};
 
 const persistState = () => {
   if (typeof window === "undefined") return;
@@ -181,7 +204,9 @@ const persistState = () => {
 };
 
 const setState = (updater: (prev: InstitutionalStoreState) => InstitutionalStoreState) => {
-  state = updater(state);
+  const nextState = updater(state);
+  if (Object.is(nextState, state)) return;
+  state = nextState;
   persistState();
   notify();
 };
@@ -868,10 +893,25 @@ export const institutionalStore = {
   },
 };
 
-export const useInstitutionalStore = <T,>(selector: (store: InstitutionalStoreState) => T): T => {
+export const useInstitutionalStoreSnapshot = (): InstitutionalStoreState => {
   useEffect(() => {
     institutionalStore.hydrate();
   }, []);
 
-  return useSyncExternalStore(institutionalStore.subscribe, () => selector(institutionalStore.getState()), () => selector(initialState));
+  return useSyncExternalStore(institutionalStore.subscribe, institutionalStore.getState, () => initialState);
+};
+
+export const useInstitutionalStore = <T,>(
+  selector: (store: InstitutionalStoreState) => T,
+  isEqual: (left: T, right: T) => boolean = Object.is,
+): T => {
+  const snapshot = useInstitutionalStoreSnapshot();
+  const selected = selector(snapshot);
+  const selectedRef = useRef(selected);
+
+  if (!isEqual(selectedRef.current, selected)) {
+    selectedRef.current = selected;
+  }
+
+  return selectedRef.current;
 };
