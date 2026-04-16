@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { role, setRole, name } = useSession();
+  const [roleSwitchTarget, setRoleSwitchTarget] = useState<string | null>(null);
 
   const tabs = [
     {
@@ -26,9 +28,21 @@ export function TopNav() {
   ];
 
   function handleRoleSwitch(nextRole: (typeof roleOptions)[number]) {
+    if (nextRole === role) {
+      return;
+    }
+
+    const nextHomeRoute = getRoleHomeRoute(nextRole);
+    setRoleSwitchTarget(nextHomeRoute);
+    router.replace(nextHomeRoute);
     setRole(nextRole);
-    router.replace(getRoleHomeRoute(nextRole));
   }
+
+  useEffect(() => {
+    if (roleSwitchTarget && pathname === roleSwitchTarget) {
+      setRoleSwitchTarget(null);
+    }
+  }, [pathname, roleSwitchTarget]);
 
   return (
     <header className="border-b bg-white">
@@ -55,7 +69,14 @@ export function TopNav() {
           </div>
           <div className="flex gap-1">
             {roleOptions.map((item) => (
-              <Button key={item} type="button" variant={item === role ? "default" : "outline"} size="sm" onClick={() => handleRoleSwitch(item)}>
+              <Button
+                key={item}
+                type="button"
+                variant={item === role ? "default" : "outline"}
+                size="sm"
+                disabled={Boolean(roleSwitchTarget)}
+                onClick={() => handleRoleSwitch(item)}
+              >
                 {item}
               </Button>
             ))}

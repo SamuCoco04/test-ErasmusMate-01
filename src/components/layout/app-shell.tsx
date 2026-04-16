@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { RoleSidebar } from "@/components/layout/role-sidebar";
@@ -14,15 +14,26 @@ export function AppShell({ children, section }: { children: ReactNode; section: 
   const router = useRouter();
   const { role } = useSession();
 
+  const roleHomeRoute = useMemo(() => getRoleHomeRoute(role), [role]);
   const isAllowed = isPathAllowedForRole(role, pathname);
+  const [redirectTarget, setRedirectTarget] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAllowed) {
-      router.replace(getRoleHomeRoute(role));
+    if (isAllowed || pathname === roleHomeRoute || redirectTarget === roleHomeRoute) {
+      return;
     }
-  }, [isAllowed, role, router]);
 
-  if (!isAllowed) {
+    setRedirectTarget(roleHomeRoute);
+    router.replace(roleHomeRoute);
+  }, [isAllowed, pathname, redirectTarget, roleHomeRoute, router]);
+
+  useEffect(() => {
+    if (redirectTarget && pathname === redirectTarget) {
+      setRedirectTarget(null);
+    }
+  }, [pathname, redirectTarget]);
+
+  if (!isAllowed || redirectTarget) {
     return null;
   }
 

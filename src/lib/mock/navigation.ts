@@ -8,7 +8,7 @@ export const institutionalMenus: Record<Role, NavItem[]> = {
       label: "Official Procedures",
       href: "/student/procedures",
       section: "institutional",
-      activePrefixes: ["/student/procedures", "/student/submissions"],
+      activePrefixes: ["/student/procedures", "/student/submissions", "/student/submissions/[submissionId]"],
     },
     {
       label: "Signatures",
@@ -24,7 +24,7 @@ export const institutionalMenus: Record<Role, NavItem[]> = {
       label: "Review Queue",
       href: "/coordinator/review-queue",
       section: "institutional",
-      activePrefixes: ["/coordinator/review-queue", "/coordinator/review"],
+      activePrefixes: ["/coordinator/review-queue", "/coordinator/review", "/coordinator/review/[submissionId]"],
     },
     { label: "Signature Requests", href: "/coordinator/signature-requests", section: "institutional" },
     { label: "Exception Decisions", href: "/coordinator/exception-decisions", section: "institutional" },
