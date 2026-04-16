@@ -1,24 +1,40 @@
-import { NextResponse } from "next/server";
+import { z } from "zod";
 
+import {
+  blocked,
+  fromUnknownError,
+  invalidJsonResponse,
+  invalidParamsResponse,
+  parseValidationErrors,
+  success,
+} from "@/lib/server/http/response";
 import { submissionDraftRequestSchema } from "@/lib/server/schemas/institutional";
-import { serverMockDb } from "@/lib/server/mock-db";
+import { institutionalServerService } from "@/lib/server/services/institutional-service";
+
+const paramsSchema = z.object({ id: z.string().min(1) });
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  let json: unknown;
+  const parsedParams = paramsSchema.safeParse(params);
+  if (!parsedParams.success) {
+    return invalidParamsResponse();
+  }
 
+  let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON request body" }, { status: 400 });
+    return invalidJsonResponse();
   }
 
   const parsedBody = submissionDraftRequestSchema.safeParse(json);
   if (!parsedBody.success) {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return blocked(parseValidationErrors(parsedBody.error.issues), 400);
   }
 
-  const body = parsedBody.data;
-  const { id } = params;
-  const result = serverMockDb.saveDraft(id, body.draftPayload);
-  return NextResponse.json(result, { status: result.outcome === "success" ? 200 : 400 });
+  try {
+    const result = institutionalServerService.saveDraft(parsedParams.data.id, parsedBody.data.draftPayload);
+    return success(result.details, result.data);
+  } catch (error) {
+    return fromUnknownError(error);
+  }
 }

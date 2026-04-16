@@ -1,24 +1,42 @@
-import { NextResponse } from "next/server";
+import { z } from "zod";
 
-import { serverMockDb } from "@/lib/server/mock-db";
+import {
+  blocked,
+  fromUnknownError,
+  invalidJsonResponse,
+  invalidParamsResponse,
+  parseValidationErrors,
+  success,
+} from "@/lib/server/http/response";
 import { connectionBlockSchema } from "@/lib/server/schemas/social";
+import { socialServerService } from "@/lib/server/services/social-service";
+
+const paramsSchema = z.object({ id: z.string().min(1) });
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const parsedParams = paramsSchema.safeParse(params);
+  if (!parsedParams.success) {
+    return invalidParamsResponse();
+  }
+
   let json: unknown;
 
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON request body" }, { status: 400 });
+    return invalidJsonResponse();
   }
 
   const parsedBody = connectionBlockSchema.safeParse(json);
 
   if (!parsedBody.success) {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return blocked(parseValidationErrors(parsedBody.error.issues), 400);
   }
 
-  const { id } = params;
-  const result = serverMockDb.blockConnection(id, parsedBody.data.reason);
-  return NextResponse.json(result, { status: result.outcome === "success" ? 200 : 400 });
+  try {
+    const result = socialServerService.blockConnection(parsedParams.data.id, parsedBody.data.reason);
+    return success(result.details, result.data);
+  } catch (error) {
+    return fromUnknownError(error);
+  }
 }

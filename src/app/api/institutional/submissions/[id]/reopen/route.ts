@@ -1,27 +1,45 @@
-import { NextResponse } from "next/server";
+import { z } from "zod";
 
+import {
+  blocked,
+  fromUnknownError,
+  invalidJsonResponse,
+  invalidParamsResponse,
+  parseValidationErrors,
+  success,
+} from "@/lib/server/http/response";
 import { submissionActionRequestSchema } from "@/lib/server/schemas/institutional";
-import { serverMockDb } from "@/lib/server/mock-db";
+import { institutionalServerService } from "@/lib/server/services/institutional-service";
+
+const paramsSchema = z.object({ id: z.string().min(1) });
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  let json: unknown;
+  const parsedParams = paramsSchema.safeParse(params);
+  if (!parsedParams.success) {
+    return invalidParamsResponse();
+  }
 
+  let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ outcome: "blocked", details: "Invalid JSON body." }, { status: 400 });
+    return invalidJsonResponse();
   }
 
   const parsedBody = submissionActionRequestSchema.safeParse(json);
   if (!parsedBody.success) {
-    return NextResponse.json({ outcome: "blocked", details: "Invalid request body." }, { status: 400 });
+    return blocked(parseValidationErrors(parsedBody.error.issues), 400);
   }
 
-  const body = parsedBody.data;
-  const { id } = params;
-  if (!body.rationale) {
-    return NextResponse.json({ outcome: "blocked", details: "rationale is required." }, { status: 400 });
+  const { rationale } = parsedBody.data;
+  if (!rationale) {
+    return blocked("Invalid request body. rationale is required.", 400);
   }
-  const result = serverMockDb.reopen(id, body.rationale);
-  return NextResponse.json(result, { status: result.outcome === "success" ? 200 : 400 });
+
+  try {
+    const result = institutionalServerService.reopen(parsedParams.data.id, rationale);
+    return success(result.details, result.data);
+  } catch (error) {
+    return fromUnknownError(error);
+  }
 }

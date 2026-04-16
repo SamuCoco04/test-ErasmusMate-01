@@ -1,32 +1,34 @@
-import { NextResponse } from "next/server";
-
-import { serverMockDb } from "@/lib/server/mock-db";
+import {
+  blocked,
+  fromUnknownError,
+  invalidJsonResponse,
+  parseValidationErrors,
+  success,
+} from "@/lib/server/http/response";
 import { connectionRequestSchema } from "@/lib/server/schemas/social";
+import { socialServerService } from "@/lib/server/services/social-service";
 
 export async function POST(request: Request) {
-  let payload: unknown;
+  let json: unknown;
 
   try {
-    payload = await request.json();
+    json = await request.json();
   } catch {
-    return NextResponse.json(
-      { outcome: "blocked", details: ["Invalid JSON request body"] },
-      { status: 400 },
-    );
+    return invalidJsonResponse();
   }
 
-  const bodyResult = connectionRequestSchema.safeParse(payload);
-  if (!bodyResult.success) {
-    return NextResponse.json(
-      {
-        outcome: "blocked",
-        details: bodyResult.error.issues.map((issue) => issue.message),
-      },
-      { status: 400 },
-    );
+  const parsedBody = connectionRequestSchema.safeParse(json);
+  if (!parsedBody.success) {
+    return blocked(parseValidationErrors(parsedBody.error.issues), 400);
   }
 
-  const body = bodyResult.data;
-  const result = serverMockDb.createConnection(body.requesterProfileId, body.recipientProfileId);
-  return NextResponse.json(result, { status: result.outcome === "success" ? 200 : 400 });
+  try {
+    const result = socialServerService.createConnection(
+      parsedBody.data.requesterProfileId,
+      parsedBody.data.recipientProfileId,
+    );
+    return success(result.details, result.data);
+  } catch (error) {
+    return fromUnknownError(error);
+  }
 }
