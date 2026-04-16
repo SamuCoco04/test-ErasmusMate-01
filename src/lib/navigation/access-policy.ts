@@ -2,16 +2,46 @@ import type { Role } from "@/lib/mock/types";
 
 export type AppSection = "institutional" | "social";
 
-export const roleHomeRoutes: Record<Role, string> = {
-  Student: "/student/dashboard",
-  Coordinator: "/coordinator/dashboard",
-  Administrator: "/admin/dashboard",
+type RoleRoutePolicy = {
+  home: string;
+  allowedPrefixes: string[];
 };
 
+export const roleRoutePolicy: Record<Role, RoleRoutePolicy> = {
+  Student: {
+    home: "/student/dashboard",
+    allowedPrefixes: ["/dashboard", "/student", "/discover", "/connections", "/messages", "/recommendations", "/map-explorer", "/profile"],
+  },
+  Coordinator: {
+    home: "/coordinator/dashboard",
+    allowedPrefixes: ["/dashboard", "/coordinator", "/discover"],
+  },
+  Administrator: {
+    home: "/admin/dashboard",
+    allowedPrefixes: ["/dashboard", "/admin", "/discover"],
+  },
+};
+
+export const roleHomeRoutes: Record<Role, string> = {
+  Student: roleRoutePolicy.Student.home,
+  Coordinator: roleRoutePolicy.Coordinator.home,
+  Administrator: roleRoutePolicy.Administrator.home,
+};
+
+export const detailRouteTemplates = {
+  studentSubmissionDetail: "/student/submissions/[id]",
+  coordinatorReviewDetail: "/coordinator/review/[id]",
+} as const;
+
+const detailRouteMatchers: Array<{ regex: RegExp; template: string }> = [
+  { regex: /^\/student\/submissions\/[^/]+$/, template: detailRouteTemplates.studentSubmissionDetail },
+  { regex: /^\/coordinator\/review\/[^/]+$/, template: detailRouteTemplates.coordinatorReviewDetail },
+];
+
 export const roleAllowedRoutePrefixes: Record<Role, string[]> = {
-  Student: ["/dashboard", "/student", "/discover", "/connections", "/messages", "/recommendations", "/map-explorer", "/profile"],
-  Coordinator: ["/dashboard", "/coordinator", "/discover"],
-  Administrator: ["/dashboard", "/admin", "/discover"],
+  Student: roleRoutePolicy.Student.allowedPrefixes,
+  Coordinator: roleRoutePolicy.Coordinator.allowedPrefixes,
+  Administrator: roleRoutePolicy.Administrator.allowedPrefixes,
 };
 
 export const sectionRoutePrefixes: Record<AppSection, string[]> = {
@@ -23,12 +53,17 @@ function pathMatchesPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
+export function normalizePathname(pathname: string) {
+  const matched = detailRouteMatchers.find(({ regex }) => regex.test(pathname));
+  return matched ? matched.template : pathname;
+}
+
 export function getRoleHomeRoute(role: Role) {
-  return roleHomeRoutes[role];
+  return roleRoutePolicy[role].home;
 }
 
 export function isPathAllowedForRole(role: Role, pathname: string) {
-  return roleAllowedRoutePrefixes[role].some((prefix) => pathMatchesPrefix(pathname, prefix));
+  return roleRoutePolicy[role].allowedPrefixes.some((prefix) => pathMatchesPrefix(pathname, prefix));
 }
 
 export function isPathInSection(pathname: string, section: AppSection) {
@@ -36,5 +71,6 @@ export function isPathInSection(pathname: string, section: AppSection) {
 }
 
 export function isPathInPrefixes(pathname: string, prefixes: string[]) {
-  return prefixes.some((prefix) => pathMatchesPrefix(pathname, prefix));
+  const normalizedPathname = normalizePathname(pathname);
+  return prefixes.some((prefix) => normalizedPathname === prefix || pathMatchesPrefix(normalizedPathname, prefix) || pathMatchesPrefix(pathname, prefix));
 }
