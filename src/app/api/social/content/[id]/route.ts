@@ -13,6 +13,20 @@ import { socialServerService } from "@/lib/server/services/social-service";
 
 const paramsSchema = z.object({ id: z.string().min(1) });
 
+export async function GET(_request: Request, { params }: { params: { id: string } }) {
+  const parsedParams = paramsSchema.safeParse(params);
+  if (!parsedParams.success) {
+    return invalidParamsResponse();
+  }
+
+  try {
+    const result = await socialServerService.getContent(parsedParams.data.id);
+    return success(result.details, result.data);
+  } catch (error) {
+    return fromUnknownError(error);
+  }
+}
+
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const parsedParams = paramsSchema.safeParse(params);
   if (!parsedParams.success) {
@@ -34,7 +48,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const { actorId, ...updates } = parsedBody.data;
 
   try {
-    const result = socialServerService.patchContent(parsedParams.data.id, actorId, updates);
+    const result = await socialServerService.patchContent(parsedParams.data.id, actorId, updates);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

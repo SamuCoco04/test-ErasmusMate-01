@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   try {
-    const result = institutionalServerService.reopen(parsedParams.data.id, rationale, actorId);
+    const result = await institutionalServerService.reopen(parsedParams.data.id, rationale, actorId);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

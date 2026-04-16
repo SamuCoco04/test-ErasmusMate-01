@@ -33,7 +33,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   try {
-    const result = institutionalServerService.decideException(
+    const result = await institutionalServerService.decideException(
       parsedParams.data.id,
       parsedBody.data.decision,
       parsedBody.data.rationale,

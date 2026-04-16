@@ -15,6 +15,14 @@ export const connectionBlockSchema = z.object({
   reason: z.string().min(1),
 });
 
+export const placeContextSchema = z
+  .object({
+    label: z.string().min(1).optional(),
+    city: z.string().min(1).optional(),
+    country: z.string().min(1).optional(),
+  })
+  .passthrough();
+
 export const socialContentCreateSchema = z.object({
   authorId: z.string().min(1),
   authorName: z.string().min(1).optional(),
@@ -22,7 +30,7 @@ export const socialContentCreateSchema = z.object({
   category: z.enum(["accommodation", "transport", "bureaucracy", "academics", "daily_living"]),
   title: z.string().min(3),
   body: z.string().min(3),
-  placeContext: z.unknown().optional(),
+  placeContext: placeContextSchema.optional(),
 });
 
 export const socialContentPatchSchema = z.object({
@@ -31,7 +39,7 @@ export const socialContentPatchSchema = z.object({
   title: z.string().min(3).optional(),
   body: z.string().min(3).optional(),
   category: z.enum(["accommodation", "transport", "bureaucracy", "academics", "daily_living"]).optional(),
-  placeContext: z.unknown().optional(),
+  placeContext: placeContextSchema.optional(),
 });
 
 export const socialFavoriteSchema = z.object({
@@ -43,4 +51,23 @@ export const moderationReportSchema = z.object({
   targetType: z.enum(["social_profile", "message", "recommendation", "opinion", "social_interaction"]),
   targetId: z.string().min(1),
   reason: z.string().min(1),
+});
+
+export const socialContentListQuerySchema = z.object({
+  type: z.enum(["recommendation", "opinion", "all"]).optional(),
+  category: z.enum(["accommodation", "transport", "bureaucracy", "academics", "daily_living"]).optional(),
+  state: z
+    .enum(["draft_or_editing", "published_visible", "updated_visible", "author_deleted", "hidden_or_restricted", "removed", "all"])
+    .optional(),
+  authorId: z.string().min(1).optional(),
+});
+
+export const socialConnectionListQuerySchema = z.object({
+  profileId: z.string().min(1),
+  state: z.enum(["pending", "accepted", "rejected", "cancelled", "expired", "blocked", "closed", "all"]).optional(),
+});
+
+export const moderationReportListQuerySchema = z.object({
+  targetType: z.enum(["social_profile", "message", "recommendation", "opinion", "social_interaction", "all"]).optional(),
+  reporterId: z.string().min(1).optional(),
 });

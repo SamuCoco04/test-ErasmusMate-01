@@ -33,7 +33,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   try {
-    const result = socialServerService.favorite(parsedParams.data.id, parsedBody.data.userId);
+    const result = await socialServerService.favorite(parsedParams.data.id, parsedBody.data.userId);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   try {
-    const result = institutionalServerService.decision(parsedParams.data.id, decision, rationale, actorId);
+    const result = await institutionalServerService.decision(parsedParams.data.id, decision, rationale, actorId);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);
