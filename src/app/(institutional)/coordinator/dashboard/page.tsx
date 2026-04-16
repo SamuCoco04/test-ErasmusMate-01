@@ -1,10 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useInstitutionalStore } from "@/lib/state/institutional-store";
+import { useInstitutionalStoreSnapshot } from "@/lib/state/institutional-store";
 
 const priorityStyle: Record<string, string> = {
   submitted: "bg-sky-100 text-sky-800 border-sky-200",
@@ -13,10 +14,19 @@ const priorityStyle: Record<string, string> = {
 };
 
 export default function CoordinatorDashboardPage() {
-  const submissions = useInstitutionalStore((store) => Object.values(store.submissions));
-  const queue = submissions.filter((item) => ["submitted", "in_review", "resubmitted"].includes(item.state));
-  const exceptions = useInstitutionalStore((store) => store.exceptions);
-  const pendingExceptions = exceptions.filter((item) => ["submitted", "in_review", "approved"].includes(item.state));
+  const snapshot = useInstitutionalStoreSnapshot();
+  const submissions = useMemo(() => Object.values(snapshot.submissions), [snapshot.submissions]);
+  const queue = useMemo(
+    () => submissions.filter((item) => ["submitted", "in_review", "resubmitted"].includes(item.state)),
+    [submissions],
+  );
+  const exceptions = snapshot.exceptions;
+  const pendingExceptions = useMemo(
+    () => exceptions.filter((item) => ["submitted", "in_review", "approved"].includes(item.state)),
+    [exceptions],
+  );
+  const approvedCount = useMemo(() => submissions.filter((item) => item.state === "approved").length, [submissions]);
+  const rejectedCount = useMemo(() => submissions.filter((item) => item.state === "rejected").length, [submissions]);
 
   return (
     <div className="space-y-6">
@@ -28,8 +38,8 @@ export default function CoordinatorDashboardPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card><CardHeader><CardTitle>{queue.length}</CardTitle><CardDescription>Review queue</CardDescription></CardHeader></Card>
         <Card><CardHeader><CardTitle>{pendingExceptions.length}</CardTitle><CardDescription>Exception decisions</CardDescription></CardHeader></Card>
-        <Card><CardHeader><CardTitle>{submissions.filter((item) => item.state === "approved").length}</CardTitle><CardDescription>Approved submissions</CardDescription></CardHeader></Card>
-        <Card><CardHeader><CardTitle>{submissions.filter((item) => item.state === "rejected").length}</CardTitle><CardDescription>Rejected submissions</CardDescription></CardHeader></Card>
+        <Card><CardHeader><CardTitle>{approvedCount}</CardTitle><CardDescription>Approved submissions</CardDescription></CardHeader></Card>
+        <Card><CardHeader><CardTitle>{rejectedCount}</CardTitle><CardDescription>Rejected submissions</CardDescription></CardHeader></Card>
       </div>
 
       <Card>

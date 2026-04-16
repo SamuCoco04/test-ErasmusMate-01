@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { institutionalService } from "@/lib/services/institutional-service";
 import { useReviewDecisionMutation } from "@/lib/query/institutional-hooks";
-import { useInstitutionalStore } from "@/lib/state/institutional-store";
+import { useInstitutionalStoreSnapshot } from "@/lib/state/institutional-store";
 
 const decisionStyle = {
   approved: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -22,15 +22,20 @@ type Decision = "approved" | "rejected" | "reopened";
 
 export default function CoordinatorReviewDetailPage() {
   const params = useParams<{ submissionId: string }>();
-  const submission = useInstitutionalStore((store) => store.submissions[params.submissionId]);
-  const docs = useInstitutionalStore((store) => store.requiredDocsBySubmissionId[params.submissionId] ?? []);
-  const auditEvents = useInstitutionalStore((store) => store.auditLog.filter((entry) => entry.submissionId === params.submissionId));
+  const snapshot = useInstitutionalStoreSnapshot();
+  const submissionId = params.submissionId;
+  const submission = snapshot.submissions[submissionId];
+  const docs = useMemo(() => snapshot.requiredDocsBySubmissionId[submissionId] ?? [], [snapshot.requiredDocsBySubmissionId, submissionId]);
+  const auditEvents = useMemo(
+    () => snapshot.auditLog.filter((entry) => entry.submissionId === submissionId),
+    [snapshot.auditLog, submissionId],
+  );
 
   const [rationale, setRationale] = useState("");
   const [decision, setDecision] = useState<Decision | null>(null);
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const mutation = useReviewDecisionMutation(params.submissionId);
+  const mutation = useReviewDecisionMutation(submissionId);
 
   const rationaleValid = rationale.trim().length >= 12;
   const disabledDecision = useMemo(() => !rationaleValid || mutation.isPending || submission?.state !== "in_review", [rationaleValid, mutation.isPending, submission?.state]);

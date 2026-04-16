@@ -1,10 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useInstitutionalStore } from "@/lib/state/institutional-store";
+import { useInstitutionalStoreSnapshot } from "@/lib/state/institutional-store";
 
 const statusStyle: Record<string, string> = {
   in_review: "bg-blue-100 text-blue-800 border-blue-200",
@@ -21,12 +22,17 @@ const statusStyle: Record<string, string> = {
 };
 
 export default function StudentDashboardPage() {
-  const submissions = useInstitutionalStore((store) =>
-    Object.values(store.submissions).filter((submission) => submission.stage !== "Coordinator review"),
+  const snapshot = useInstitutionalStoreSnapshot();
+  const submissions = useMemo(
+    () => Object.values(snapshot.submissions).filter((submission) => submission.stage !== "Coordinator review"),
+    [snapshot.submissions],
   );
-  const deadlines = useInstitutionalStore((store) => store.deadlines);
+  const deadlines = snapshot.deadlines;
 
-  const actionItems = submissions.filter((submission) => ["draft", "submitted", "in_review", "rejected", "reopened"].includes(submission.state));
+  const actionItems = useMemo(
+    () => submissions.filter((submission) => ["draft", "submitted", "in_review", "rejected", "reopened"].includes(submission.state)),
+    [submissions],
+  );
 
   return (
     <div className="space-y-6">

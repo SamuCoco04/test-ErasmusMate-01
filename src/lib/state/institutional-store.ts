@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStoreWithSelector } from "use-sync-external-store/with-selector";
 
 import { reviewDetailBySubmissionId } from "@/lib/mock/coordinator-institutional";
 import { deadlines, exceptions, requiredDocumentsForSubmission, submissions } from "@/lib/mock/student-institutional";
@@ -168,8 +169,31 @@ const initialState: InstitutionalStoreState = {
 let state = initialState;
 let hydrated = false;
 const listeners = new Set<() => void>();
+let devCycleGuard = {
+  windowStart: 0,
+  cycles: 0,
+};
 
-const notify = () => listeners.forEach((listener) => listener());
+const DEV_GUARD_WINDOW_MS = 250;
+const DEV_GUARD_THRESHOLD = 25;
+
+const notify = () => {
+  if (process.env.NODE_ENV !== "production") {
+    const now = Date.now();
+    if (now - devCycleGuard.windowStart > DEV_GUARD_WINDOW_MS) {
+      devCycleGuard = { windowStart: now, cycles: 1 };
+    } else {
+      devCycleGuard.cycles += 1;
+      if (devCycleGuard.cycles === DEV_GUARD_THRESHOLD) {
+        console.warn(
+          "[institutional-store] Potential repeated subscription cycle detected. Check selectors for derived arrays/objects created on every callback.",
+        );
+      }
+    }
+  }
+
+  listeners.forEach((listener) => listener());
+};
 
 const persistState = () => {
   if (typeof window === "undefined") return;
@@ -181,7 +205,9 @@ const persistState = () => {
 };
 
 const setState = (updater: (prev: InstitutionalStoreState) => InstitutionalStoreState) => {
-  state = updater(state);
+  const nextState = updater(state);
+  if (Object.is(nextState, state)) return;
+  state = nextState;
   persistState();
   notify();
 };
@@ -868,10 +894,43 @@ export const institutionalStore = {
   },
 };
 
-export const useInstitutionalStore = <T,>(selector: (store: InstitutionalStoreState) => T): T => {
+export const useInstitutionalStoreSnapshot = (): InstitutionalStoreState => {
   useEffect(() => {
     institutionalStore.hydrate();
   }, []);
 
-  return useSyncExternalStore(institutionalStore.subscribe, () => selector(institutionalStore.getState()), () => selector(initialState));
+  return useSyncExternalStore(institutionalStore.subscribe, institutionalStore.getState, () => initialState);
+};
+
+export const useInstitutionalStore = <T,>(
+  selector: (store: InstitutionalStoreState) => T,
+  isEqual: (left: T, right: T) => boolean = Object.is,
+): T => {
+  useEffect(() => {
+    institutionalStore.hydrate();
+  }, []);
+
+  return useSyncExternalStoreWithSelector(
+    institutionalStore.subscribe,
+    institutionalStore.getState,
+    () => initialState,
+    selector,
+    isEqual,
+  );
+  const cacheRef = useRef<{ hasValue: false } | { hasValue: true; value: T }>({ hasValue: false });
+
+  // Stable getSnapshot: returns the cached value (same reference) when isEqual says
+  // the selected slice is unchanged, so useSyncExternalStore can bail out of the re-render.
+  const getSnapshot = useRef((): T => {
+    const next = selectorRef.current(institutionalStore.getState());
+    if (cacheRef.current.hasValue && isEqualRef.current(cacheRef.current.value, next)) {
+      return cacheRef.current.value;
+    }
+    cacheRef.current = { hasValue: true, value: next };
+    return next;
+  }).current;
+
+  const getServerSnapshot = useRef((): T => selectorRef.current(initialState)).current;
+
+  return useSyncExternalStore(institutionalStore.subscribe, getSnapshot, getServerSnapshot);
 };

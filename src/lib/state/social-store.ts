@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { messageThreads, socialConnections, socialProfiles, type ConnectionState } from "@/lib/mock/social-support";
 
@@ -84,8 +84,31 @@ const initialState: SocialStoreState = {
 let state = initialState;
 let hydrated = false;
 const listeners = new Set<() => void>();
+let devCycleGuard = {
+  windowStart: 0,
+  cycles: 0,
+};
 
-const notify = () => listeners.forEach((listener) => listener());
+const DEV_GUARD_WINDOW_MS = 250;
+const DEV_GUARD_THRESHOLD = 25;
+
+const notify = () => {
+  if (process.env.NODE_ENV !== "production") {
+    const now = Date.now();
+    if (now - devCycleGuard.windowStart > DEV_GUARD_WINDOW_MS) {
+      devCycleGuard = { windowStart: now, cycles: 1 };
+    } else {
+      devCycleGuard.cycles += 1;
+      if (devCycleGuard.cycles === DEV_GUARD_THRESHOLD) {
+        console.warn(
+          "[social-store] Potential repeated subscription cycle detected. Check selectors for derived arrays/objects created on every callback.",
+        );
+      }
+    }
+  }
+
+  listeners.forEach((listener) => listener());
+};
 
 const persistState = () => {
   if (typeof window === "undefined") return;
@@ -97,7 +120,9 @@ const persistState = () => {
 };
 
 const setState = (updater: (prev: SocialStoreState) => SocialStoreState) => {
-  state = updater(state);
+  const nextState = updater(state);
+  if (Object.is(nextState, state)) return;
+  state = nextState;
   persistState();
   notify();
 };
@@ -298,10 +323,41 @@ export const socialStore = {
   },
 };
 
-export const useSocialStore = <T,>(selector: (snapshot: SocialStoreState) => T): T => {
+export const useSocialStoreSnapshot = (): SocialStoreState => {
   useEffect(() => {
     socialStore.hydrate();
   }, []);
 
-  return useSyncExternalStore(socialStore.subscribe, () => selector(socialStore.getState()), () => selector(initialState));
+  return useSyncExternalStore(socialStore.subscribe, socialStore.getState, () => initialState);
+};
+
+export const useSocialStore = <T,>(
+  selector: (snapshot: SocialStoreState) => T,
+  isEqual: (left: T, right: T) => boolean = Object.is,
+): T => {
+  useEffect(() => {
+    socialStore.hydrate();
+  }, []);
+
+  const selectorRef = useRef(selector);
+  const isEqualRef = useRef(isEqual);
+  selectorRef.current = selector;
+  isEqualRef.current = isEqual;
+
+  const cacheRef = useRef<{ hasValue: false } | { hasValue: true; value: T }>({ hasValue: false });
+
+  // Stable getSnapshot: returns the cached value (same reference) when isEqual says
+  // the selected slice is unchanged, so useSyncExternalStore can bail out of the re-render.
+  const getSnapshot = useRef((): T => {
+    const next = selectorRef.current(socialStore.getState());
+    if (cacheRef.current.hasValue && isEqualRef.current(cacheRef.current.value, next)) {
+      return cacheRef.current.value;
+    }
+    cacheRef.current = { hasValue: true, value: next };
+    return next;
+  }).current;
+
+  const getServerSnapshot = useRef((): T => selectorRef.current(initialState)).current;
+
+  return useSyncExternalStore(socialStore.subscribe, getSnapshot, getServerSnapshot);
 };
