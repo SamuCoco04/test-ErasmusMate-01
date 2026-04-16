@@ -21,6 +21,7 @@ enum SubmissionState {
   rejected
   reopened
   resubmitted
+  archived
 }
 
 enum ExceptionState {
@@ -28,13 +29,31 @@ enum ExceptionState {
   in_review
   approved
   rejected
+  applied
+  closed
+}
+
+enum ExceptionScopeType {
+  deadline
+  document_obligation
+  procedure_condition
 }
 
 enum SocialConnectionState {
   pending
   accepted
   rejected
+  cancelled
+  expired
   blocked
+  closed
+}
+
+enum MessagingPermissionState {
+  not_permitted
+  permitted
+  blocked
+  expired_or_closed_retained
 }
 
 enum SocialContentType {
@@ -43,27 +62,38 @@ enum SocialContentType {
 }
 
 enum SocialContentState {
-  published
-  hidden
+  draft_or_editing
+  published_visible
+  updated_visible
+  author_deleted
+  hidden_or_restricted
   removed
 }
 
+enum ModerationTargetType {
+  social_profile
+  message
+  recommendation
+  opinion
+  social_interaction
+}
+
 model User {
-  id              String           @id @default(cuid())
-  email           String           @unique
-  name            String
-  createdAt       DateTime         @default(now())
-  roleAssignments RoleAssignment[]
-  mobilityRecords MobilityRecord[]
-  submissions     Submission[]
-  audits          SubmissionAuditEvent[]
-  exceptions      ExceptionRequest[] @relation("RequesterExceptions")
-  decidedExceptions ExceptionRequest[] @relation("DeciderExceptions")
-  socialProfile   SocialProfile?
-  sentMessages    Message[]        @relation("SentMessages")
-  authoredContent SocialContent[]
-  reports         ModerationReport[]
-  favorites       Favorite[]
+  id                String                 @id @default(cuid())
+  email             String                 @unique
+  name              String
+  createdAt         DateTime               @default(now())
+  roleAssignments   RoleAssignment[]
+  mobilityRecords   MobilityRecord[]
+  submissions       Submission[]
+  audits            SubmissionAuditEvent[]
+  exceptions        ExceptionRequest[]     @relation("RequesterExceptions")
+  decidedExceptions ExceptionRequest[]     @relation("DeciderExceptions")
+  socialProfile     SocialProfile?
+  sentMessages      Message[]              @relation("SentMessages")
+  authoredContent   SocialContent[]
+  reports           ModerationReport[]
+  favorites         Favorite[]
 }
 
 model RoleAssignment {
@@ -75,15 +105,15 @@ model RoleAssignment {
 }
 
 model MobilityRecord {
-  id          String       @id @default(cuid())
-  studentId   String
+  id              String       @id @default(cuid())
+  studentId       String
   homeInstitution String
   hostInstitution String
-  destination String
-  state       String
-  createdAt   DateTime     @default(now())
-  student     User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  submissions Submission[]
+  destination     String
+  state           String
+  createdAt       DateTime     @default(now())
+  student         User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  submissions     Submission[]
 }
 
 model Submission {
@@ -125,91 +155,106 @@ model SubmissionAuditEvent {
 }
 
 model ExceptionRequest {
-  id               String         @id @default(cuid())
-  submissionId     String
-  requesterId      String
-  state            ExceptionState @default(submitted)
-  scope            String
-  rationale        String
-  requestedEffect  String
-  decisionRationale String?
-  decidedById      String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  submission       Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  requester        User           @relation("RequesterExceptions", fields: [requesterId], references: [id], onDelete: Cascade)
-  decidedBy        User?          @relation("DeciderExceptions", fields: [decidedById], references: [id], onDelete: SetNull)
+  id                   String         @id @default(cuid())
+  submissionId         String
+  requesterId          String
+  state                ExceptionState @default(submitted)
+  scope                String
+  rationale            String
+  requestedEffect      String
+  decisionRationale    String?
+  appliedEffectSummary String?
+  decidedAt            DateTime?
+  appliedAt            DateTime?
+  decidedById          String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  submission           Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  requester            User           @relation("RequesterExceptions", fields: [requesterId], references: [id], onDelete: Cascade)
+  decidedBy            User?          @relation("DeciderExceptions", fields: [decidedById], references: [id], onDelete: SetNull)
 }
 
 model SocialProfile {
-  id            String             @id @default(cuid())
-  userId         String             @unique
-  displayName    String
-  bio            String?
-  discoverable   Boolean            @default(true)
-  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String             @id @default(cuid())
+  userId              String             @unique
+  displayName         String
+  bio                 String?
+  discoverable        Boolean            @default(true)
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   outgoingConnections SocialConnection[] @relation("OutgoingConnections")
   incomingConnections SocialConnection[] @relation("IncomingConnections")
-  messagesSent   Message[]          @relation("ProfileMessages")
+  blockedConnections  SocialConnection[] @relation("BlockedConnections")
+  messagesSent        Message[]          @relation("ProfileMessages")
 }
 
 model SocialConnection {
-  id                 String                @id @default(cuid())
-  requesterProfileId String
-  recipientProfileId String
-  state              SocialConnectionState @default(pending)
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  requester          SocialProfile         @relation("OutgoingConnections", fields: [requesterProfileId], references: [id], onDelete: Cascade)
-  recipient          SocialProfile         @relation("IncomingConnections", fields: [recipientProfileId], references: [id], onDelete: Cascade)
-  messages           Message[]
+  id                  String                   @id @default(cuid())
+  requesterProfileId  String
+  recipientProfileId  String
+  state               SocialConnectionState    @default(pending)
+  messagingPermission MessagingPermissionState @default(not_permitted)
+  blockedByProfileId  String?
+  blockedByProfile    SocialProfile?           @relation("BlockedConnections", fields: [blockedByProfileId], references: [id], onDelete: SetNull)
+  blockedReason       String?
+  respondedAt         DateTime?
+  closedAt            DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  requester           SocialProfile            @relation("OutgoingConnections", fields: [requesterProfileId], references: [id], onDelete: Cascade)
+  recipient           SocialProfile            @relation("IncomingConnections", fields: [recipientProfileId], references: [id], onDelete: Cascade)
+  messages            Message[]
 }
 
 model Message {
-  id            String           @id @default(cuid())
-  connectionId  String
-  senderId      String
+  id              String           @id @default(cuid())
+  connectionId    String
+  senderId        String
   senderProfileId String?
-  body          String
-  createdAt     DateTime         @default(now())
-  connection    SocialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  sender        User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  senderProfile SocialProfile?   @relation("ProfileMessages", fields: [senderProfileId], references: [id], onDelete: SetNull)
+  body            String
+  createdAt       DateTime         @default(now())
+  connection      SocialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  sender          User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  senderProfile   SocialProfile?   @relation("ProfileMessages", fields: [senderProfileId], references: [id], onDelete: SetNull)
 }
 
 model SocialContent {
-  id          String             @id @default(cuid())
-  authorId    String
-  type        SocialContentType
-  category    String
-  title       String
-  body        String
-  state       SocialContentState @default(published)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  author      User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  favorites   Favorite[]
-  reports     ModerationReport[]
+  id             String             @id @default(cuid())
+  authorId       String
+  type           SocialContentType
+  category       String
+  title          String
+  body           String
+  state          SocialContentState @default(published_visible)
+  placeLabel     String?
+  placeCity      String?
+  placeCountry   String?
+  placeLatitude  Decimal?
+  placeLongitude Decimal?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  author         User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  favorites      Favorite[]
+  reports        ModerationReport[]
 }
 
 model ModerationReport {
-  id         String   @id @default(cuid())
+  id         String               @id @default(cuid())
   reporterId String
-  targetType String
+  targetType ModerationTargetType
   targetId   String
   reason     String
-  createdAt  DateTime @default(now())
-  reporter   User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  createdAt  DateTime             @default(now())
+  reporter   User                 @relation(fields: [reporterId], references: [id], onDelete: Cascade)
   contentId  String?
-  content    SocialContent? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  content    SocialContent?       @relation(fields: [contentId], references: [id], onDelete: SetNull)
 }
 
 model Favorite {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   userId    String
   contentId String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   content   SocialContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
 
   @@unique([userId, contentId])
