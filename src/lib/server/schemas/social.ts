@@ -24,10 +24,10 @@ export const placeContextSchema = z
     destinationCountry: z.string().min(1).optional(),
   })
   .passthrough()
-  .transform((placeContext) => ({
-    ...placeContext,
-    label: placeContext.label ?? placeContext.placeName,
-    country: placeContext.country ?? placeContext.destinationCountry,
+  .transform(({ placeName, destinationCountry, ...rest }) => ({
+    ...rest,
+    label: rest.label ?? placeName,
+    country: rest.country ?? destinationCountry,
   }));
 
 export const socialContentCreateSchema = z.object({
