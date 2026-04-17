@@ -10,8 +10,8 @@ import { withLatency } from "@/lib/query/mutation-helpers";
 export function useSendConnectionRequestMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ targetProfileId, actorProfileId }: { targetProfileId: string; actorProfileId: string }) =>
-      withLatency(() => socialService.sendConnectionRequest(targetProfileId, actorProfileId)),
+    mutationFn: ({ targetProfileId, requesterProfileId }: { targetProfileId: string; requesterProfileId: string }) =>
+      withLatency(() => socialService.sendConnectionRequest(targetProfileId, requesterProfileId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
       queryClient.invalidateQueries({ queryKey: ["social", "discover"] });
@@ -80,6 +80,7 @@ export function useDiscoverProfilesQuery(actorProfileId: string) {
     queryKey: ["social", "discover", actorProfileId],
     queryFn: () => socialService.readDiscover(actorProfileId),
     enabled: Boolean(actorProfileId),
+    retry: false,
   });
 }
 
@@ -88,6 +89,7 @@ export function useConnectionsQuery(profileId: string) {
     queryKey: ["social", "connections", profileId],
     queryFn: () => socialService.readConnections(profileId),
     enabled: Boolean(profileId),
+    retry: false,
   });
 }
 
@@ -96,6 +98,7 @@ export function useMessagesQuery(profileId: string) {
     queryKey: ["social", "messages", profileId],
     queryFn: () => socialService.readMessages(profileId),
     enabled: Boolean(profileId),
+    retry: false,
   });
 }
 
@@ -103,6 +106,7 @@ export function useContentQuery(filters?: { type?: string; category?: string; st
   return useQuery({
     queryKey: ["social", "content", filters ?? {}],
     queryFn: () => socialService.readContent(filters),
+    retry: false,
   });
 }
 
@@ -118,5 +122,6 @@ export function useMapQuery(filters?: {
   return useQuery({
     queryKey: ["social", "map", filters ?? {}],
     queryFn: () => socialService.readMap(filters),
+    retry: false,
   });
 }

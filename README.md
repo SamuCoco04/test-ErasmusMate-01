@@ -50,8 +50,8 @@ Open: `http://localhost:3000`
 - Reset DB + rerun migrations + reseed:
   ```bash
   npm run db:reset
-  npm run db:seed
   ```
+  (`prisma migrate reset` automatically runs the configured seed after applying migrations.)
 
 ## Scripts
 - `npm run dev` — start Next.js dev server

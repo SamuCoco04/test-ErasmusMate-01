@@ -3,6 +3,14 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  const dbUrl = process.env.DATABASE_URL ?? "";
+  const isLocalSqlite = dbUrl.startsWith("file:") || dbUrl === "";
+  if (!isLocalSqlite && process.env.SEED_ALLOW_REMOTE !== "1") {
+    console.error("❌ Seed aborted: DATABASE_URL does not appear to be a local SQLite file.");
+    console.error("   Set SEED_ALLOW_REMOTE=1 to override this safety check.");
+    process.exit(1);
+  }
+
   await prisma.favorite.deleteMany();
   await prisma.moderationReport.deleteMany();
   await prisma.message.deleteMany();

@@ -87,7 +87,7 @@ export default function DiscoverPage() {
                     <Button
                       size="sm"
                       disabled={requestMutation.isPending || activeConnection?.state === "pending" || activeConnection?.state === "accepted" || activeConnection?.state === "blocked"}
-                      onClick={() => requestMutation.mutate({ targetProfileId: profile.id, actorProfileId: ACTOR_PROFILE_ID })}
+                      onClick={() => requestMutation.mutate({ targetProfileId: profile.id, requesterProfileId: ACTOR_PROFILE_ID })}
                     >
                       {activeConnection?.state === "blocked"
                         ? "Blocked"

@@ -526,7 +526,7 @@ export const institutionalServerService = {
   },
 
   async getSubmission(submissionId: string): Promise<ServiceResult> {
-      const submission = await prisma.submission.findUnique({
+    const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
         documents: true,
