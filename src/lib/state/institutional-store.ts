@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
-import { useSyncExternalStoreWithSelector } from "use-sync-external-store/with-selector";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { reviewDetailBySubmissionId } from "@/lib/mock/coordinator-institutional";
 import { deadlines, exceptions, requiredDocumentsForSubmission, submissions } from "@/lib/mock/student-institutional";
@@ -910,13 +909,11 @@ export const useInstitutionalStore = <T,>(
     institutionalStore.hydrate();
   }, []);
 
-  return useSyncExternalStoreWithSelector(
-    institutionalStore.subscribe,
-    institutionalStore.getState,
-    () => initialState,
-    selector,
-    isEqual,
-  );
+  const selectorRef = useRef(selector);
+  const isEqualRef = useRef(isEqual);
+  selectorRef.current = selector;
+  isEqualRef.current = isEqual;
+
   const cacheRef = useRef<{ hasValue: false } | { hasValue: true; value: T }>({ hasValue: false });
 
   // Stable getSnapshot: returns the cached value (same reference) when isEqual says

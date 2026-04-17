@@ -34,8 +34,8 @@ export function TopNav() {
 
     const nextHomeRoute = getRoleHomeRoute(nextRole);
     setRoleSwitchTarget(nextHomeRoute);
-    router.replace(nextHomeRoute);
     setRole(nextRole);
+    router.replace(nextHomeRoute);
   }
 
   useEffect(() => {
