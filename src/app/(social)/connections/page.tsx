@@ -1,22 +1,20 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAcceptConnectionMutation, useBlockUserMutation, useConnectionsQuery, useRejectConnectionMutation, useReportEntityMutation } from "@/lib/query/social-hooks";
-import { withLatency } from "@/lib/query/mutation-helpers";
-import { socialService } from "@/lib/services/social-service";
+import { useAcceptConnectionMutation, useBlockUserMutation, useCancelConnectionMutation, useConnectionsQuery, useRejectConnectionMutation, useReportEntityMutation } from "@/lib/query/social-hooks";
 
 const ACTOR_PROFILE_ID = "ME-STUDENT";
 
 type Connection = {
   id: string;
-  peerProfileId: string;
+  peerProfileId?: string;
   peerName?: string;
   state: string;
+  direction?: string;
   initiatedAt?: string;
+  createdAt?: string;
   requesterProfileId?: string;
   recipientProfileId?: string;
   requester?: { displayName?: string };
@@ -29,7 +27,7 @@ export default function ConnectionsPage() {
   const rejectMutation = useRejectConnectionMutation();
   const blockMutation = useBlockUserMutation();
   const reportMutation = useReportEntityMutation();
-  const cancelMutation = useMutation({ mutationFn: (connectionId: string) => withLatency(() => socialService.cancelConnection(connectionId)) });
+  const cancelMutation = useCancelConnectionMutation();
 
   const connections = ((connectionsQuery.data as Connection[] | undefined) ?? []).map((connection) => {
     const inferredPeerName =
@@ -37,11 +35,28 @@ export default function ConnectionsPage() {
       ?? (connection.requesterProfileId === ACTOR_PROFILE_ID ? connection.recipient?.displayName : connection.requester?.displayName)
       ?? "Peer";
 
+    const inferredDirection =
+      connection.direction
+      ?? (connection.recipientProfileId === ACTOR_PROFILE_ID
+        ? "incoming"
+        : connection.requesterProfileId === ACTOR_PROFILE_ID
+          ? "outgoing"
+          : "outgoing");
+
+    // Derive peerProfileId from requester/recipient if not present (API shape)
+    const peerProfileId =
+      connection.peerProfileId
+      ?? (connection.requesterProfileId === ACTOR_PROFILE_ID
+        ? connection.recipientProfileId
+        : connection.requesterProfileId)
+      ?? "";
+
     return {
       ...connection,
       peerName: inferredPeerName,
-      direction: connection.recipientProfileId === ACTOR_PROFILE_ID ? "incoming" : "outgoing",
-      initiatedAt: connection.initiatedAt ?? new Date().toISOString(),
+      peerProfileId,
+      direction: inferredDirection,
+      initiatedAt: connection.initiatedAt ?? connection.createdAt,
     };
   });
 
@@ -104,7 +119,7 @@ export default function ConnectionsPage() {
                   >
                     Report
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => blockMutation.mutate({ peerId: connection.peerProfileId, reason: "Blocked from connection page" })}>
+                  <Button size="sm" variant="outline" onClick={() => blockMutation.mutate({ peerId: connection.peerProfileId, connectionId: connection.id, reason: "Blocked from connection page" })}>
                     Block
                   </Button>
                 </div>

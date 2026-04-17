@@ -51,8 +51,8 @@ export function useCancelConnectionMutation() {
 export function useBlockUserMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ peerId, reason }: { peerId: string; reason: string }) =>
-      withLatency(() => socialService.blockUser(peerId, reason)),
+    mutationFn: ({ peerId, reason, connectionId }: { peerId: string; reason: string; connectionId?: string }) =>
+      withLatency(() => socialService.blockUser(peerId, reason, connectionId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
       queryClient.invalidateQueries({ queryKey: ["social", "discover"] });
@@ -63,7 +63,7 @@ export function useBlockUserMutation() {
 export function useReportEntityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { targetType: ReportTargetType; targetId: string; reason: string }) =>
+    mutationFn: (input: { reporterProfileId?: string; targetType: ReportTargetType; targetId: string; reason: string }) =>
       withLatency(() => socialService.reportEntity(input)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "moderation"] });
@@ -95,7 +95,7 @@ export function useMessagesQuery(profileId: string) {
   });
 }
 
-export function useContentQuery(filters?: { type?: string; category?: string; state?: string; authorId?: string }) {
+export function useContentQuery(filters?: { type?: string; category?: string; state?: string; authorId?: string; viewerId?: string }) {
   return useQuery({
     queryKey: ["social", "content", filters ?? {}],
     queryFn: () => socialService.readContent(filters),

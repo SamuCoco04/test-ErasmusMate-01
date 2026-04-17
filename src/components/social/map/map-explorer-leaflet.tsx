@@ -42,7 +42,7 @@ export function MapExplorerLeaflet() {
 
   const filteredPins = useMemo(
     () =>
-      mapPins.filter((pin) => pin.state === "published"),
+      mapPins.filter((pin) => pin.state === "published" || pin.state === "published_visible" || pin.state === "updated_visible"),
     [mapPins],
   );
 

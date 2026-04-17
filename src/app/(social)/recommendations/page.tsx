@@ -44,6 +44,7 @@ type ApiContentItem = {
   placeCountry?: string | null;
   _count?: { favorites?: number; reports?: number };
   author?: { name?: string };
+  viewerHasFavorited?: boolean;
 };
 
 function defaultValuesFromItem(item?: ApiContentItem): FormValues {
@@ -60,7 +61,7 @@ function defaultValuesFromItem(item?: ApiContentItem): FormValues {
 
 export default function RecommendationsPage() {
   const queryClient = useQueryClient();
-  const contentQuery = useContentQuery();
+  const contentQuery = useContentQuery({ viewerId: CURRENT_USER_ID });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reportReasonById, setReportReasonById] = useState<Record<string, string>>({});
 
@@ -123,7 +124,7 @@ export default function RecommendationsPage() {
 
   const reportMutation = useMutation({
     mutationFn: async ({ contentId, reason, type }: { contentId: string; reason: string; type: "recommendation" | "opinion" }) => {
-      return socialService.reportEntity({ targetType: type, targetId: contentId, reason });
+      return socialService.reportEntity({ reporterProfileId: CURRENT_USER_ID, targetType: type, targetId: contentId, reason });
     },
     onSuccess: (_, { contentId }) => {
       setReportReasonById((prev) => {
@@ -199,7 +200,7 @@ export default function RecommendationsPage() {
         <CardContent className="space-y-3">
           {contentItems.map((item) => {
             const canManage = item.authorId === CURRENT_USER_ID;
-            const isFavorite = false;
+            const isFavorite = item.viewerHasFavorited ?? false;
 
             return (
               <div key={item.id} className="space-y-3 rounded-md border bg-white p-4 text-sm">
@@ -228,6 +229,7 @@ export default function RecommendationsPage() {
                     className="max-w-xs"
                     value={reportReasonById[item.id] ?? ""}
                     placeholder="Report reason"
+                    aria-label={`Report reason for ${item.title}`}
                     onChange={(event) => setReportReasonById((prev) => ({ ...prev, [item.id]: event.target.value }))}
                   />
                   <Button size="sm" variant="outline" onClick={() => { setEditingId(item.id); form.reset(defaultValuesFromItem(item)); }} disabled={!canManage}>

@@ -16,7 +16,9 @@ type DiscoverProfile = {
 
 type Connection = {
   id: string;
-  peerProfileId: string;
+  peerProfileId?: string;
+  requesterProfileId?: string;
+  recipientProfileId?: string;
   state: string;
 };
 
@@ -28,7 +30,17 @@ export default function DiscoverPage() {
   const reportMutation = useReportEntityMutation();
 
   const discoverableProfiles = (discoverQuery.data as DiscoverProfile[] | undefined) ?? [];
-  const connections = (connectionsQuery.data as Connection[] | undefined) ?? [];
+  const rawConnections = (connectionsQuery.data as Connection[] | undefined) ?? [];
+
+  // Normalize connections: derive peerProfileId from requester/recipient when absent (API shape)
+  const connections = rawConnections.map((connection) => ({
+    ...connection,
+    peerProfileId:
+      connection.peerProfileId
+      ?? (connection.requesterProfileId === ACTOR_PROFILE_ID
+        ? connection.recipientProfileId
+        : connection.requesterProfileId),
+  }));
 
   return (
     <div className="space-y-6">
@@ -51,7 +63,11 @@ export default function DiscoverPage() {
             discoverableProfiles.map((profile) => {
               const activeConnection = connections
                 .filter((connection) => connection.peerProfileId === profile.id)
-                .sort((a, b) => a.id.localeCompare(b.id))[0];
+                .sort((a, b) => {
+                  const aTime = (a as { createdAt?: string; initiatedAt?: string }).createdAt ?? (a as { createdAt?: string; initiatedAt?: string }).initiatedAt ?? a.id;
+                  const bTime = (b as { createdAt?: string; initiatedAt?: string }).createdAt ?? (b as { createdAt?: string; initiatedAt?: string }).initiatedAt ?? b.id;
+                  return bTime.localeCompare(aTime);
+                })[0];
 
               return (
                 <div key={profile.id} className="space-y-3 rounded-md border bg-white p-4">

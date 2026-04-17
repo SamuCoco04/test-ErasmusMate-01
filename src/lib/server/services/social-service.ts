@@ -4,6 +4,24 @@ import { Prisma } from "@prisma/client";
 import { DomainError } from "@/lib/server/http/response";
 import { prisma } from "@/lib/server/prisma";
 
+/** Map Prisma SocialContentState enum values to the simplified client-facing states. */
+function toClientContentState(prismaState: SocialContentState): string {
+  switch (prismaState) {
+    case "draft_or_editing":
+      return "draft";
+    case "published_visible":
+    case "updated_visible":
+      return "published";
+    case "hidden_or_restricted":
+      return "hidden";
+    case "author_deleted":
+    case "removed":
+      return "removed";
+    default:
+      return "published";
+  }
+}
+
 type ServiceResult<T = unknown> = { outcome: "success"; details: string; data?: T };
 const ERASMUS_RELEVANT_CATEGORIES = ["accommodation", "transport", "bureaucracy", "academics", "daily_living"] as const;
 
@@ -233,7 +251,7 @@ export const socialServerService = {
     return { outcome: "success", details: "Social content read model fetched.", data: content };
   },
 
-  async listContent(filters: { type?: SocialContentType | "all"; category?: string; state?: SocialContentState | "all"; authorId?: string }): Promise<ServiceResult> {
+  async listContent(filters: { type?: SocialContentType | "all"; category?: string; state?: SocialContentState | "all"; authorId?: string; viewerId?: string }): Promise<ServiceResult> {
     const content = await prisma.socialContent.findMany({
       where: {
         type: filters.type && filters.type !== "all" ? filters.type : undefined,
@@ -245,10 +263,17 @@ export const socialServerService = {
       include: {
         author: { select: { id: true, name: true } },
         _count: { select: { favorites: true, reports: true } },
+        favorites: filters.viewerId ? { where: { userId: filters.viewerId }, select: { id: true } } : false,
       },
     });
 
-    return { outcome: "success", details: "Social content list read model fetched.", data: content };
+    const data = content.map((item) => ({
+      ...item,
+      viewerHasFavorited: filters.viewerId ? (item.favorites as { id: string }[] | undefined ?? []).length > 0 : false,
+      favorites: undefined,
+    }));
+
+    return { outcome: "success", details: "Social content list read model fetched.", data };
   },
 
   async listConnections(filters: { profileId: string; state?: SocialConnectionState | "all" }): Promise<ServiceResult> {
@@ -386,7 +411,7 @@ export const socialServerService = {
           rating: Number(rating.toFixed(1)),
           text: item.body,
           date: item.createdAt.toISOString().slice(0, 10),
-          state: item.state,
+          state: toClientContentState(item.state),
           latHint: Number(item.placeLatitude ?? 41.3874),
           lngHint: Number(item.placeLongitude ?? 2.1686),
           relatedContentId: item.id,

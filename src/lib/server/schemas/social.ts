@@ -67,6 +67,7 @@ export const socialContentListQuerySchema = z.object({
     .enum(["draft_or_editing", "published_visible", "updated_visible", "author_deleted", "hidden_or_restricted", "removed", "all"])
     .optional(),
   authorId: z.string().min(1).optional(),
+  viewerId: z.string().min(1).optional(),
 });
 
 export const socialConnectionListQuerySchema = z.object({

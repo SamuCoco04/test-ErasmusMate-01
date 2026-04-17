@@ -115,13 +115,13 @@ export const socialService = {
       },
     );
   },
-  async blockUser(peerId: string, reason: string) {
-    const connectionId = socialStore.getState().connections.find((connection) => connection.peerProfileId === peerId)?.id;
-    if (SOCIAL_API_ENABLED && !connectionId) return blockedResult("No connection found for target profile.");
+  async blockUser(peerId: string, reason: string, connectionId?: string) {
+    const resolvedConnectionId = connectionId ?? socialStore.getState().connections.find((connection) => connection.peerProfileId === peerId)?.id;
+    if (SOCIAL_API_ENABLED && !resolvedConnectionId) return blockedResult("No connection found for target profile.");
 
     return runSocialMutation(
       () =>
-        postApi(`/api/social/connections/${connectionId}/block`, {
+        postApi(`/api/social/connections/${resolvedConnectionId}/block`, {
           actorProfileId: socialStore.getState().actorProfileId,
           reason,
         }),
@@ -131,11 +131,11 @@ export const socialService = {
       },
     );
   },
-  async reportEntity(input: { targetType: ReportTargetType; targetId: string; reason: string }) {
+  async reportEntity(input: { reporterProfileId?: string; targetType: ReportTargetType; targetId: string; reason: string }) {
     return runSocialMutation(
       () =>
         postApi("/api/social/reports", {
-        reporterId: socialStore.getState().actorProfileId,
+        reporterProfileId: input.reporterProfileId ?? socialStore.getState().actorProfileId,
         targetType: input.targetType,
         targetId: input.targetId,
         reason: input.reason,
@@ -246,7 +246,7 @@ export const socialService = {
     if (response?.outcome === "success") return response.data;
     return socialStore.getState().threads;
   },
-  async readContent(filters?: { type?: string; category?: string; state?: string; authorId?: string }) {
+  async readContent(filters?: { type?: string; category?: string; state?: string; authorId?: string; viewerId?: string }) {
     if (!SOCIAL_API_ENABLED) {
       return socialContentStore.getState().contentItems;
     }
@@ -255,6 +255,7 @@ export const socialService = {
     if (filters?.category) params.set("category", filters.category);
     if (filters?.state) params.set("state", filters.state);
     if (filters?.authorId) params.set("authorId", filters.authorId);
+    if (filters?.viewerId) params.set("viewerId", filters.viewerId);
 
     const query = params.toString();
     const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/social/content${query ? `?${query}` : ""}`);
