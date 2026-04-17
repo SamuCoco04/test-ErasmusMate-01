@@ -56,7 +56,7 @@ export default function ConnectionsPage() {
       peerName: inferredPeerName,
       peerProfileId,
       direction: inferredDirection,
-      initiatedAt: connection.initiatedAt ?? connection.createdAt,
+      initiatedAt: connection.initiatedAt ?? connection.createdAt ?? undefined,
     };
   });
 
@@ -83,7 +83,7 @@ export default function ConnectionsPage() {
               <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-white p-3 text-sm">
                 <div>
                   <p className="font-medium text-slate-900">{connection.peerName}</p>
-                  <p className="text-muted-foreground">Initiated: {connection.initiatedAt}</p>
+                  <p className="text-muted-foreground">Initiated: {connection.initiatedAt ?? "—"}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={canMessage ? "default" : "secondary"}>{connection.state}</Badge>

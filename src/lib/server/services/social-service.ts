@@ -267,11 +267,13 @@ export const socialServerService = {
       },
     });
 
-    const data = content.map((item) => ({
-      ...item,
-      viewerHasFavorited: filters.viewerId ? (item.favorites as { id: string }[] | undefined ?? []).length > 0 : false,
-      favorites: undefined,
-    }));
+    const data = content.map((item) => {
+      const { favorites, ...rest } = item as typeof item & { favorites?: { id: string }[] };
+      return {
+        ...rest,
+        viewerHasFavorited: filters.viewerId ? (favorites ?? []).length > 0 : false,
+      };
+    });
 
     return { outcome: "success", details: "Social content list read model fetched.", data };
   },

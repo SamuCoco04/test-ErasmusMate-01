@@ -19,8 +19,14 @@ type Connection = {
   peerProfileId?: string;
   requesterProfileId?: string;
   recipientProfileId?: string;
+  createdAt?: string;
+  initiatedAt?: string;
   state: string;
 };
+
+function getConnectionTimestamp(connection: Connection): string {
+  return connection.createdAt ?? connection.initiatedAt ?? connection.id;
+}
 
 export default function DiscoverPage() {
   const discoverQuery = useDiscoverProfilesQuery(ACTOR_PROFILE_ID);
@@ -63,11 +69,7 @@ export default function DiscoverPage() {
             discoverableProfiles.map((profile) => {
               const activeConnection = connections
                 .filter((connection) => connection.peerProfileId === profile.id)
-                .sort((a, b) => {
-                  const aTime = (a as { createdAt?: string; initiatedAt?: string }).createdAt ?? (a as { createdAt?: string; initiatedAt?: string }).initiatedAt ?? a.id;
-                  const bTime = (b as { createdAt?: string; initiatedAt?: string }).createdAt ?? (b as { createdAt?: string; initiatedAt?: string }).initiatedAt ?? b.id;
-                  return bTime.localeCompare(aTime);
-                })[0];
+                .sort((a, b) => getConnectionTimestamp(b).localeCompare(getConnectionTimestamp(a)))[0];
 
               return (
                 <div key={profile.id} className="space-y-3 rounded-md border bg-white p-4">
