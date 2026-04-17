@@ -260,23 +260,28 @@ export const institutionalServerService = {
       throw new DomainError("CONFLICT", `Cannot edit draft while state is ${submission.state}.`);
     }
 
-    const updated = await prisma.submission.update({
-      where: { id: submissionId },
-      data: {
-        state: "draft",
-        draftPayload: draftPayload as Prisma.InputJsonValue,
-      },
-    });
+    try {
+      const updated = await prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          draftPayload: draftPayload as Prisma.InputJsonValue,
+        },
+      });
 
-    await recordSubmissionEvent({
-      submissionId,
-      actorId,
-      eventType: "save_submission_draft",
-      priorState: submission.state,
-      newState: updated.state,
-    });
+      await recordSubmissionEvent({
+        submissionId,
+        actorId,
+        eventType: "save_submission_draft",
+        priorState: submission.state,
+        newState: updated.state,
+      });
 
-    return { outcome: "success", details: "Draft saved.", data: updated };
+      return { outcome: "success", details: "Draft saved.", data: updated };
+    } catch (error) {
+      translateForeignKeyError(error, "Actor user not found.");
+    }
+
+    throw new DomainError("CONFLICT", "Draft could not be saved.");
   },
 
   async submit(submissionId: string, actorId: string): Promise<ServiceResult> {
@@ -288,67 +293,85 @@ export const institutionalServerService = {
 
     assertSubmissionTransition(submission.state, "submitted");
 
-    const updated = await prisma.submission.update({
-      where: { id: submissionId },
-      data: {
-        state: "submitted",
-        submittedAt: new Date(),
-      },
-    });
+    try {
+      const updated = await prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          state: "submitted",
+          submittedAt: new Date(),
+        },
+      });
 
-    await recordSubmissionEvent({
-      submissionId,
-      actorId,
-      eventType: "final_submit",
-      priorState: submission.state,
-      newState: updated.state,
-    });
+      await recordSubmissionEvent({
+        submissionId,
+        actorId,
+        eventType: "final_submit",
+        priorState: submission.state,
+        newState: updated.state,
+      });
 
-    return { outcome: "success", details: "Submission submitted.", data: updated };
+      return { outcome: "success", details: "Submission submitted.", data: updated };
+    } catch (error) {
+      translateForeignKeyError(error, "Actor user not found.");
+    }
+
+    throw new DomainError("CONFLICT", "Submission could not be submitted.");
   },
 
   async startReview(submissionId: string, actorId: string): Promise<ServiceResult> {
     const submission = await ensureSubmission(submissionId);
     assertSubmissionTransition(submission.state, "in_review");
 
-    const updated = await prisma.submission.update({
-      where: { id: submissionId },
-      data: { state: "in_review" },
-    });
+    try {
+      const updated = await prisma.submission.update({
+        where: { id: submissionId },
+        data: { state: "in_review" },
+      });
 
-    await recordSubmissionEvent({
-      submissionId,
-      actorId,
-      eventType: "review_started",
-      priorState: submission.state,
-      newState: updated.state,
-    });
+      await recordSubmissionEvent({
+        submissionId,
+        actorId,
+        eventType: "review_started",
+        priorState: submission.state,
+        newState: updated.state,
+      });
 
-    return { outcome: "success", details: "Submission moved to in_review.", data: updated };
+      return { outcome: "success", details: "Submission moved to in_review.", data: updated };
+    } catch (error) {
+      translateForeignKeyError(error, "Actor user not found.");
+    }
+
+    throw new DomainError("CONFLICT", "Review could not be started.");
   },
 
   async resubmit(submissionId: string, actorId: string, draftPayload: Record<string, unknown>): Promise<ServiceResult> {
     const submission = await ensureSubmission(submissionId);
     assertSubmissionTransition(submission.state, "resubmitted");
 
-    const updated = await prisma.submission.update({
-      where: { id: submissionId },
-      data: {
-        state: "resubmitted",
-        submittedAt: new Date(),
-        draftPayload: draftPayload as Prisma.InputJsonValue,
-      },
-    });
+    try {
+      const updated = await prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          state: "resubmitted",
+          submittedAt: new Date(),
+          draftPayload: draftPayload as Prisma.InputJsonValue,
+        },
+      });
 
-    await recordSubmissionEvent({
-      submissionId,
-      actorId,
-      eventType: "resubmit_after_rejection",
-      priorState: submission.state,
-      newState: updated.state,
-    });
+      await recordSubmissionEvent({
+        submissionId,
+        actorId,
+        eventType: "resubmit_after_rejection",
+        priorState: submission.state,
+        newState: updated.state,
+      });
 
-    return { outcome: "success", details: "Submission resubmitted.", data: updated };
+      return { outcome: "success", details: "Submission resubmitted.", data: updated };
+    } catch (error) {
+      translateForeignKeyError(error, "Actor user not found.");
+    }
+
+    throw new DomainError("CONFLICT", "Submission could not be resubmitted.");
   },
 
   async decision(
@@ -459,20 +482,26 @@ export const institutionalServerService = {
       throw new DomainError("CONFLICT", `Exception ${exception.id} must be in submitted state.`);
     }
 
-    const updated = await prisma.exceptionRequest.update({
-      where: { id: exceptionId },
-      data: { state: "in_review", decidedById: actorId },
-    });
+    try {
+      const updated = await prisma.exceptionRequest.update({
+        where: { id: exceptionId },
+        data: { state: "in_review", decidedById: actorId },
+      });
 
-    await recordSubmissionEvent({
-      submissionId: exception.submissionId,
-      actorId,
-      eventType: "exception_review_started",
-      priorState: undefined,
-      newState: undefined,
-    });
+      await recordSubmissionEvent({
+        submissionId: exception.submissionId,
+        actorId,
+        eventType: "exception_review_started",
+        priorState: undefined,
+        newState: undefined,
+      });
 
-    return { outcome: "success", details: `Exception ${exceptionId} moved to in_review.`, data: mapException(updated) };
+      return { outcome: "success", details: `Exception ${exceptionId} moved to in_review.`, data: mapException(updated) };
+    } catch (error) {
+      translateForeignKeyError(error, "Actor user not found.");
+    }
+
+    throw new DomainError("CONFLICT", "Exception review could not be started.");
   },
 
   async decideException(exceptionId: string, decision: "approved" | "rejected", rationale: string, actorId: string): Promise<ServiceResult> {
@@ -518,23 +547,29 @@ export const institutionalServerService = {
       ? `Applied deadline effect: ${exception.requestedEffect}`
       : `Applied ${exception.scope} effect: ${exception.requestedEffect}`;
 
-    const updated = await prisma.exceptionRequest.update({
-      where: { id: exceptionId },
-      data: {
-        state: "applied",
-        appliedAt: new Date(),
-        appliedEffectSummary,
-      },
-    });
+    try {
+      const updated = await prisma.exceptionRequest.update({
+        where: { id: exceptionId },
+        data: {
+          state: "applied",
+          appliedAt: new Date(),
+          appliedEffectSummary,
+        },
+      });
 
-    await recordSubmissionEvent({
-      submissionId: exception.submissionId,
-      actorId,
-      eventType: "exception_applied",
-      rationale: appliedEffectSummary,
-    });
+      await recordSubmissionEvent({
+        submissionId: exception.submissionId,
+        actorId,
+        eventType: "exception_applied",
+        rationale: appliedEffectSummary,
+      });
 
-    return { outcome: "success", details: `Exception ${exception.id} applied.`, data: mapException(updated) };
+      return { outcome: "success", details: `Exception ${exception.id} applied.`, data: mapException(updated) };
+    } catch (error) {
+      translateForeignKeyError(error, "Actor user not found.");
+    }
+
+    throw new DomainError("CONFLICT", "Exception could not be applied.");
   },
 
   async closeException(exceptionId: string, actorId: string): Promise<ServiceResult> {
@@ -543,18 +578,24 @@ export const institutionalServerService = {
       throw new DomainError("CONFLICT", `Exception ${exception.id} must be applied before close.`);
     }
 
-    const updated = await prisma.exceptionRequest.update({
-      where: { id: exceptionId },
-      data: { state: "closed" },
-    });
+    try {
+      const updated = await prisma.exceptionRequest.update({
+        where: { id: exceptionId },
+        data: { state: "closed" },
+      });
 
-    await recordSubmissionEvent({
-      submissionId: exception.submissionId,
-      actorId,
-      eventType: "exception_closed",
-    });
+      await recordSubmissionEvent({
+        submissionId: exception.submissionId,
+        actorId,
+        eventType: "exception_closed",
+      });
 
-    return { outcome: "success", details: `Exception ${exception.id} closed.`, data: mapException(updated) };
+      return { outcome: "success", details: `Exception ${exception.id} closed.`, data: mapException(updated) };
+    } catch (error) {
+      translateForeignKeyError(error, "Actor user not found.");
+    }
+
+    throw new DomainError("CONFLICT", "Exception could not be closed.");
   },
 
   async getSubmission(submissionId: string): Promise<ServiceResult> {

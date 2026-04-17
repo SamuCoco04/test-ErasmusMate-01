@@ -112,7 +112,7 @@ export function useExceptionDecisionMutation() {
         if (decision === "start") return assertOutcome(await institutionalService.startExceptionReview(exceptionId, coordinatorId));
         if (decision === "approve") return assertOutcome(await institutionalService.approveException(exceptionId, rationale, coordinatorId));
         if (decision === "reject") return assertOutcome(await institutionalService.rejectException(exceptionId, rationale, coordinatorId));
-        if (decision === "apply") return assertOutcome(await institutionalService.applyApprovedException(exceptionId));
+        if (decision === "apply") return assertOutcome(await institutionalService.applyApprovedException(exceptionId, coordinatorId));
         return assertOutcome(await institutionalService.closeAppliedException(exceptionId, coordinatorId));
       }),
     onSuccess: () => invalidateInstitutionalReadModels(queryClient),

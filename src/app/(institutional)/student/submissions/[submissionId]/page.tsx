@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -41,11 +41,21 @@ export default function StudentSubmissionDetailPage() {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      submissionMetadata: submission?.draftPayload?.submissionMetadata ? String(submission.draftPayload.submissionMetadata) : "",
-      studyCycle: submission?.draftPayload?.studyCycle ? String(submission.draftPayload.studyCycle) : "Bachelor",
+      submissionMetadata: "",
+      studyCycle: "Bachelor",
     },
     mode: "onChange",
   });
+
+  const { reset } = form;
+
+  useEffect(() => {
+    if (!submission) return;
+    reset({
+      submissionMetadata: submission?.draftPayload?.submissionMetadata ? String(submission.draftPayload.submissionMetadata) : "",
+      studyCycle: submission?.draftPayload?.studyCycle ? String(submission.draftPayload.studyCycle) : "Bachelor",
+    });
+  }, [submission, reset]);
 
   const mockedValidationMessages = useMemo(
     () => [

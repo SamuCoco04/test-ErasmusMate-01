@@ -31,7 +31,6 @@ export const exceptionListQuerySchema = z.object({
   state: z.enum(["submitted", "in_review", "approved", "rejected", "applied", "closed", "all"]).optional(),
 });
 
-
 export const actorRequestSchema = z.object({
   actorId: z.string().min(1),
 });

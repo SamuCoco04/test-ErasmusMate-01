@@ -113,8 +113,8 @@ export const institutionalService = {
     const query = submissionId ? `?submissionId=${encodeURIComponent(submissionId)}` : "";
     return readData<ExceptionReadModel[]>(`/api/institutional/exceptions${query}`);
   },
-  async applyApprovedException(exceptionId: string) {
-    return postApi(`/api/institutional/exceptions/${exceptionId}/apply`, { actorId: "coord-anna-jensen" });
+  async applyApprovedException(exceptionId: string, actorId: string) {
+    return postApi(`/api/institutional/exceptions/${exceptionId}/apply`, { actorId });
   },
   async closeAppliedException(exceptionId: string, actorId: string) {
     return postApi(`/api/institutional/exceptions/${exceptionId}/close`, { actorId });
