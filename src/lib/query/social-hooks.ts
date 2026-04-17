@@ -10,7 +10,8 @@ import { withLatency } from "@/lib/query/mutation-helpers";
 export function useSendConnectionRequestMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (targetProfileId: string) => withLatency(() => socialService.sendConnectionRequest(targetProfileId)),
+    mutationFn: ({ targetProfileId, actorProfileId }: { targetProfileId: string; actorProfileId: string }) =>
+      withLatency(() => socialService.sendConnectionRequest(targetProfileId, actorProfileId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
       queryClient.invalidateQueries({ queryKey: ["social", "discover"] });
@@ -21,7 +22,8 @@ export function useSendConnectionRequestMutation() {
 export function useAcceptConnectionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (connectionId: string) => withLatency(() => socialService.acceptConnection(connectionId)),
+    mutationFn: ({ connectionId, actorProfileId }: { connectionId: string; actorProfileId: string }) =>
+      withLatency(() => socialService.acceptConnection(connectionId, actorProfileId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
     },
@@ -31,7 +33,8 @@ export function useAcceptConnectionMutation() {
 export function useRejectConnectionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (connectionId: string) => withLatency(() => socialService.rejectConnection(connectionId)),
+    mutationFn: ({ connectionId, actorProfileId }: { connectionId: string; actorProfileId: string }) =>
+      withLatency(() => socialService.rejectConnection(connectionId, actorProfileId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
     },
@@ -41,7 +44,8 @@ export function useRejectConnectionMutation() {
 export function useCancelConnectionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (connectionId: string) => withLatency(() => socialService.cancelConnection(connectionId)),
+    mutationFn: ({ connectionId, actorProfileId }: { connectionId: string; actorProfileId: string }) =>
+      withLatency(() => socialService.cancelConnection(connectionId, actorProfileId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
     },
@@ -51,8 +55,8 @@ export function useCancelConnectionMutation() {
 export function useBlockUserMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ peerId, reason, connectionId }: { peerId: string; reason: string; connectionId?: string }) =>
-      withLatency(() => socialService.blockUser(peerId, reason, connectionId)),
+    mutationFn: ({ connectionId, actorProfileId, reason }: { connectionId: string; actorProfileId: string; reason: string }) =>
+      withLatency(() => socialService.blockUser(connectionId, actorProfileId, reason)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "connections"] });
       queryClient.invalidateQueries({ queryKey: ["social", "discover"] });
@@ -63,7 +67,7 @@ export function useBlockUserMutation() {
 export function useReportEntityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { reporterProfileId?: string; targetType: ReportTargetType; targetId: string; reason: string }) =>
+    mutationFn: (input: { reporterProfileId: string; targetType: ReportTargetType; targetId: string; reason: string }) =>
       withLatency(() => socialService.reportEntity(input)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "moderation"] });

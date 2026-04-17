@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input";
 import { useContentQuery } from "@/lib/query/social-hooks";
 import { socialService } from "@/lib/services/social-service";
 
-const CURRENT_USER_ID = "SOC-STU-001";
+const CURRENT_USER_ID = "student";
+const CURRENT_PROFILE_ID = "ME-STUDENT";
 const CURRENT_USER_NAME = "Maria Rodriguez";
 
 const CATEGORY_OPTIONS = ["accommodation", "transport", "bureaucracy", "academics", "daily_living"] as const;
@@ -124,7 +125,7 @@ export default function RecommendationsPage() {
 
   const reportMutation = useMutation({
     mutationFn: async ({ contentId, reason, type }: { contentId: string; reason: string; type: "recommendation" | "opinion" }) => {
-      return socialService.reportEntity({ reporterProfileId: CURRENT_USER_ID, targetType: type, targetId: contentId, reason });
+      return socialService.reportEntity({ reporterProfileId: CURRENT_PROFILE_ID, targetType: type, targetId: contentId, reason });
     },
     onSuccess: (_, { contentId }) => {
       setReportReasonById((prev) => {

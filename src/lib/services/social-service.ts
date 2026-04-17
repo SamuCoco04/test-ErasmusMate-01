@@ -1,10 +1,8 @@
-import { SOCIAL_API_ENABLED } from "@/lib/config/feature-flags";
+import { getApi, patchApi, postApi, deleteApi } from "@/lib/services/api-client";
+
 import type { ApiMutationResponse } from "@/lib/server/schemas/http";
-import { deleteApi, getApi, patchApi, postApi } from "@/lib/services/api-client";
-import { socialContentStore, type ErasmusRelevantCategory, type SocialContentType } from "@/lib/state/social-content-store";
-import { socialStore, type ReportTargetType } from "@/lib/state/social-store";
-import { mapLinkedRecommendationsFixture } from "@/lib/mock/social/map";
-import { socialProfiles } from "@/lib/mock/social-support";
+import type { ReportTargetType } from "@/lib/state/social-store";
+import type { ErasmusRelevantCategory, SocialContentType } from "@/lib/state/social-content-store";
 
 type CreateSocialContentInput = {
   type: SocialContentType;
@@ -33,223 +31,78 @@ type EditSocialContentInput = {
   body?: string;
 };
 
-const successResult = (details: string, data?: unknown): ApiMutationResponse => ({
-  outcome: "success",
-  details,
-  data,
-});
-
-const blockedResult = (details: string): ApiMutationResponse => ({
-  outcome: "blocked",
-  details,
-});
-
-async function runSocialMutation(
-  apiCall: () => Promise<ApiMutationResponse>,
-  fallback: () => ApiMutationResponse,
-): Promise<ApiMutationResponse> {
-  if (!SOCIAL_API_ENABLED) {
-    try {
-      return fallback();
-    } catch (error) {
-      return blockedResult(error instanceof Error ? error.message : "Fallback mutation failed.");
-    }
-  }
-
-  return apiCall();
-}
+const readData = async <T>(url: string): Promise<T> => {
+  const response = await getApi<{ outcome?: string; data?: T; details?: string }>(url);
+  if (response?.outcome === "success" && response.data !== undefined) return response.data;
+  throw new Error(response?.details ?? `Failed to fetch social data from ${url}.`);
+};
 
 export const socialService = {
-  // Connection lifecycle
-  async sendConnectionRequest(targetProfileId: string) {
-    return runSocialMutation(
-      () =>
-        postApi("/api/social/connections/request", {
-        requesterProfileId: socialStore.getState().actorProfileId,
-        recipientProfileId: targetProfileId,
-        }),
-      () => {
-        const applied = socialStore.sendConnectionRequest(targetProfileId);
-        return applied
-          ? successResult("Connection request stored in mock social state.")
-          : blockedResult("Connection request not applied: profile not found or active connection already exists.");
-      },
-    );
+  async sendConnectionRequest(targetProfileId: string, requesterProfileId: string) {
+    return postApi("/api/social/connections/request", {
+      requesterProfileId,
+      recipientProfileId: targetProfileId,
+    });
   },
-  async acceptConnection(connectionId: string) {
-    return runSocialMutation(
-      () =>
-        postApi(`/api/social/connections/${connectionId}/respond`, {
-        actorProfileId: socialStore.getState().actorProfileId,
-        action: "accepted",
-        }),
-      () => {
-        socialStore.acceptConnection(connectionId);
-        return successResult("Connection accepted in mock social state.");
-      },
-    );
+  async acceptConnection(connectionId: string, actorProfileId: string): Promise<ApiMutationResponse> {
+    return postApi(`/api/social/connections/${connectionId}/respond`, {
+      actorProfileId,
+      action: "accepted",
+    });
   },
-  async rejectConnection(connectionId: string) {
-    return runSocialMutation(
-      () =>
-        postApi(`/api/social/connections/${connectionId}/respond`, {
-        actorProfileId: socialStore.getState().actorProfileId,
-        action: "rejected",
-        }),
-      () => {
-        socialStore.rejectConnection(connectionId);
-        return successResult("Connection rejected in mock social state.");
-      },
-    );
+  async rejectConnection(connectionId: string, actorProfileId: string): Promise<ApiMutationResponse> {
+    return postApi(`/api/social/connections/${connectionId}/respond`, {
+      actorProfileId,
+      action: "rejected",
+    });
   },
-  cancelConnection(connectionId: string) {
-    return runSocialMutation(
-      () =>
-        postApi(`/api/social/connections/${connectionId}/respond`, {
-          actorProfileId: socialStore.getState().actorProfileId,
-          action: "cancelled",
-        }),
-      () => {
-        socialStore.cancelConnection(connectionId);
-        return successResult("Connection request canceled in mock social state.");
-      },
-    );
+  async cancelConnection(connectionId: string, actorProfileId: string): Promise<ApiMutationResponse> {
+    return postApi(`/api/social/connections/${connectionId}/respond`, {
+      actorProfileId,
+      action: "cancelled",
+    });
   },
-  async blockUser(peerId: string, reason: string, connectionId?: string) {
-    const resolvedConnectionId = connectionId ?? socialStore.getState().connections.find((connection) => connection.peerProfileId === peerId)?.id;
-    if (SOCIAL_API_ENABLED && !resolvedConnectionId) return blockedResult("No connection found for target profile.");
-
-    return runSocialMutation(
-      () =>
-        postApi(`/api/social/connections/${resolvedConnectionId}/block`, {
-          actorProfileId: socialStore.getState().actorProfileId,
-          reason,
-        }),
-      () => {
-        socialStore.blockUser(peerId, reason);
-        return successResult("User blocked in mock social state.");
-      },
-    );
+  async blockUser(connectionId: string, actorProfileId: string, reason: string): Promise<ApiMutationResponse> {
+    return postApi(`/api/social/connections/${connectionId}/block`, {
+      actorProfileId,
+      reason,
+    });
   },
-  async reportEntity(input: { reporterProfileId?: string; targetType: ReportTargetType; targetId: string; reason: string }) {
-    return runSocialMutation(
-      () =>
-        postApi("/api/social/reports", {
-        reporterProfileId: input.reporterProfileId ?? socialStore.getState().actorProfileId,
-        targetType: input.targetType,
-        targetId: input.targetId,
-        reason: input.reason,
-        }),
-      () => {
-        socialStore.reportEntity(input);
-        return successResult("Social moderation report stored in mock state.");
-      },
-    );
-  },
-  canStartConnectionWith(profileId: string) {
-    return socialStore.canStartConnectionWith(profileId);
-  },
-  canSendMessageToProfile(profileId: string) {
-    return socialStore.canSendMessageToProfile(profileId);
+  async reportEntity(input: { reporterProfileId: string; targetType: ReportTargetType; targetId: string; reason: string }) {
+    return postApi("/api/social/reports", {
+      reporterProfileId: input.reporterProfileId,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      reason: input.reason,
+    });
   },
 
-  // Recommendation/opinion lifecycle
   async createContent(input: CreateSocialContentInput) {
-    return runSocialMutation(
-      () => postApi("/api/social/content", input),
-      () => {
-        const data = socialContentStore.createContent(input);
-        return successResult("Social content created in mock content store.", data);
-      },
-    );
+    return postApi("/api/social/content", input);
   },
   async editOwnContent(contentId: string, input: EditSocialContentInput) {
-    return runSocialMutation(
-      () => patchApi(`/api/social/content/${contentId}`, input),
-      () => {
-        socialContentStore.editOwnContent(contentId, input);
-        return successResult("Social content updated in mock content store.");
-      },
-    );
+    return patchApi(`/api/social/content/${contentId}`, input);
   },
   async deleteOwnContent(contentId: string, actorId: string) {
-    return runSocialMutation(
-      () => deleteApi(`/api/social/content/${contentId}?actorId=${encodeURIComponent(actorId)}`),
-      () => {
-        socialContentStore.deleteOwnContent(contentId, actorId);
-        return successResult("Social content deleted in mock content store.");
-      },
-    );
+    return deleteApi(`/api/social/content/${contentId}?actorId=${encodeURIComponent(actorId)}`);
   },
   async favorite(contentId: string, userId: string) {
-    return runSocialMutation(
-      () => postApi(`/api/social/content/${contentId}/favorite`, { userId }),
-      () => {
-        socialContentStore.addFavorite(contentId, userId);
-        return successResult("Favorite mutation applied in mock content store.");
-      },
-    );
+    return postApi(`/api/social/content/${contentId}/favorite`, { userId });
   },
   async unfavorite(contentId: string, userId: string) {
-    return runSocialMutation(
-      () => deleteApi(`/api/social/content/${contentId}/favorite?userId=${encodeURIComponent(userId)}`),
-      () => {
-        socialContentStore.removeFavorite(contentId, userId);
-        return successResult("Favorite removed in mock content store.");
-      },
-    );
+    return deleteApi(`/api/social/content/${contentId}/favorite?userId=${encodeURIComponent(userId)}`);
   },
-  async reportContent(contentId: string, reason: string, reporterId?: string) {
-    const contentItem = socialContentStore.getState().contentItems.find((item) => item.id === contentId);
-    const targetType = contentItem?.type ?? "recommendation";
-    return runSocialMutation(
-      () =>
-        postApi("/api/social/reports", {
-        reporterId: reporterId ?? socialStore.getState().actorProfileId,
-          targetType,
-        targetId: contentId,
-        reason,
-        }),
-      () => {
-        socialContentStore.reportContent(contentId, reason, reporterId);
-        return successResult("Social content report stored in mock content store.");
-      },
-    );
-  },
+
   async readConnections(profileId: string) {
-    if (!SOCIAL_API_ENABLED) {
-      return socialStore.getState().connections;
-    }
-    const response = await getApi<{ outcome?: string; data?: unknown }>(
-      `/api/social/connections/request?profileId=${encodeURIComponent(profileId)}`,
-    );
-    if (response?.outcome === "success") return response.data;
-    return socialStore.getState().connections;
+    return readData<unknown>(`/api/social/connections/request?profileId=${encodeURIComponent(profileId)}`);
   },
   async readDiscover(actorProfileId: string) {
-    if (!SOCIAL_API_ENABLED) {
-      return socialProfiles.filter((profile) => profile.id !== actorProfileId && profile.consent.discoverabilityConsent);
-    }
-    const response = await getApi<{ outcome?: string; data?: unknown }>(
-      `/api/social/discover?actorProfileId=${encodeURIComponent(actorProfileId)}`,
-    );
-    if (response?.outcome === "success") return response.data;
-    return [];
+    return readData<unknown>(`/api/social/discover?actorProfileId=${encodeURIComponent(actorProfileId)}`);
   },
   async readMessages(profileId: string) {
-    if (!SOCIAL_API_ENABLED) {
-      return socialStore.getState().threads;
-    }
-    const response = await getApi<{ outcome?: string; data?: unknown }>(
-      `/api/social/messages?profileId=${encodeURIComponent(profileId)}`,
-    );
-    if (response?.outcome === "success") return response.data;
-    return socialStore.getState().threads;
+    return readData<unknown>(`/api/social/messages?profileId=${encodeURIComponent(profileId)}`);
   },
   async readContent(filters?: { type?: string; category?: string; state?: string; authorId?: string; viewerId?: string }) {
-    if (!SOCIAL_API_ENABLED) {
-      return socialContentStore.getState().contentItems;
-    }
     const params = new URLSearchParams();
     if (filters?.type) params.set("type", filters.type);
     if (filters?.category) params.set("category", filters.category);
@@ -258,18 +111,11 @@ export const socialService = {
     if (filters?.viewerId) params.set("viewerId", filters.viewerId);
 
     const query = params.toString();
-    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/social/content${query ? `?${query}` : ""}`);
-    if (response?.outcome === "success") return response.data;
-    return socialContentStore.getState().contentItems;
+    return readData<unknown>(`/api/social/content${query ? `?${query}` : ""}`);
   },
   async readReports(targetType?: string) {
-    if (!SOCIAL_API_ENABLED) {
-      return socialStore.getState().moderationReports;
-    }
     const query = targetType ? `?targetType=${encodeURIComponent(targetType)}` : "";
-    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/social/reports${query}`);
-    if (response?.outcome === "success") return response.data;
-    return socialStore.getState().moderationReports;
+    return readData<unknown>(`/api/social/reports${query}`);
   },
   async readMap(filters?: {
     destinationCountry?: string;
@@ -280,9 +126,6 @@ export const socialService = {
     fromDate?: string;
     date?: string;
   }) {
-    if (!SOCIAL_API_ENABLED) {
-      return mapLinkedRecommendationsFixture;
-    }
     const params = new URLSearchParams();
     if (filters?.destinationCountry) params.set("destinationCountry", filters.destinationCountry);
     if (filters?.city) params.set("city", filters.city);
@@ -293,8 +136,6 @@ export const socialService = {
     if (filters?.date) params.set("date", filters.date);
 
     const query = params.toString();
-    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/social/map${query ? `?${query}` : ""}`);
-    if (response?.outcome === "success") return response.data;
-    return mapLinkedRecommendationsFixture;
+    return readData<unknown>(`/api/social/map${query ? `?${query}` : ""}`);
   },
 };

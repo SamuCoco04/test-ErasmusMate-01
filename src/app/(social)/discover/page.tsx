@@ -87,7 +87,7 @@ export default function DiscoverPage() {
                     <Button
                       size="sm"
                       disabled={requestMutation.isPending || activeConnection?.state === "pending" || activeConnection?.state === "accepted" || activeConnection?.state === "blocked"}
-                      onClick={() => requestMutation.mutate(profile.id)}
+                      onClick={() => requestMutation.mutate({ targetProfileId: profile.id, actorProfileId: ACTOR_PROFILE_ID })}
                     >
                       {activeConnection?.state === "blocked"
                         ? "Blocked"
@@ -100,14 +100,15 @@ export default function DiscoverPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => reportMutation.mutate({ targetType: "social_profile", targetId: profile.id, reason: "User report from discover page" })}
+                      onClick={() => reportMutation.mutate({ reporterProfileId: ACTOR_PROFILE_ID, targetType: "social_profile", targetId: profile.id, reason: "User report from discover page" })}
                     >
                       Report
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => blockMutation.mutate({ peerId: profile.id, reason: "Blocked from discover page" })}
+                      disabled={!activeConnection?.id}
+                      onClick={() => activeConnection?.id ? blockMutation.mutate({ connectionId: activeConnection.id, actorProfileId: ACTOR_PROFILE_ID, reason: "Blocked from discover page" }) : undefined}
                     >
                       Block
                     </Button>

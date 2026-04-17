@@ -11,8 +11,6 @@ type DeadlineState = "upcoming" | "overdue" | "overridden";
 const REVIEWABLE_STATES: SubmissionState[] = ["submitted", "in_review", "resubmitted"];
 const DECISION_STATES: SubmissionState[] = ["in_review"];
 
-let seeded = false;
-
 const submissionMeta = new Map(
   seededSubmissions.map((submission) => [
     submission.id,
@@ -42,75 +40,7 @@ const translateForeignKeyError = (error: unknown, message: string): never => {
   throw error;
 };
 
-const ensureSeedData = async () => {
-  if (seeded) return;
-
-  await prisma.$transaction(async (tx) => {
-    await tx.user.upsert({
-      where: { id: "student" },
-      update: {},
-      create: { id: "student", email: "student@erasmusmate.test", name: "Maria Rodriguez" },
-    });
-
-    await tx.user.upsert({
-      where: { id: "coord-anna-jensen" },
-      update: {},
-      create: { id: "coord-anna-jensen", email: "anna.jensen@erasmusmate.test", name: "Dr. Anna Jensen" },
-    });
-
-    await tx.roleAssignment.upsert({
-      where: { id: "role-student" },
-      update: {},
-      create: { id: "role-student", userId: "student", role: "student" },
-    });
-
-    await tx.roleAssignment.upsert({
-      where: { id: "role-coordinator" },
-      update: {},
-      create: { id: "role-coordinator", userId: "coord-anna-jensen", role: "coordinator" },
-    });
-
-    await tx.mobilityRecord.upsert({
-      where: { id: "MOB-2026-00047" },
-      update: {},
-      create: {
-        id: "MOB-2026-00047",
-        studentId: "student",
-        homeInstitution: "Technical University of Madrid",
-        hostInstitution: "University of Barcelona",
-        destination: "Barcelona, Spain",
-        state: "active",
-      },
-    });
-
-    for (const seedSubmission of seededSubmissions) {
-      await tx.submission.upsert({
-        where: { id: seedSubmission.id },
-        update: {},
-        create: {
-          id: seedSubmission.id,
-          mobilityRecordId: "MOB-2026-00047",
-          studentId: "student",
-          state: seedSubmission.state,
-          submittedAt: ["submitted", "in_review", "approved", "rejected", "reopened", "resubmitted", "archived"].includes(seedSubmission.state)
-            ? new Date(`${seedSubmission.dueDate}T09:00:00.000Z`)
-            : null,
-          draftPayload: seedSubmission.mandatoryMetadataComplete
-            ? ({
-                submissionMetadata: "Seeded metadata",
-                studyCycle: "Bachelor",
-              } as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
-        },
-      });
-    }
-  });
-
-  seeded = true;
-};
-
 const ensureSubmission = async (submissionId: string) => {
-  await ensureSeedData();
   const submission = await prisma.submission.findUnique({ where: { id: submissionId } });
   if (!submission) {
     throw new DomainError("NOT_FOUND", "Submission not found.");
@@ -119,7 +49,6 @@ const ensureSubmission = async (submissionId: string) => {
 };
 
 const ensureException = async (exceptionId: string) => {
-  await ensureSeedData();
   const exceptionRequest = await prisma.exceptionRequest.findUnique({ where: { id: exceptionId } });
   if (!exceptionRequest) {
     throw new DomainError("NOT_FOUND", "Exception not found.");
@@ -184,8 +113,7 @@ const mapException = (exceptionRequest: {
 
 export const institutionalServerService = {
   async listSubmissions(filters: { role?: "student" | "coordinator" }): Promise<ServiceResult> {
-    await ensureSeedData();
-
+  
     const submissions = await prisma.submission.findMany({
       orderBy: { id: "asc" },
       include: {
@@ -219,8 +147,7 @@ export const institutionalServerService = {
   },
 
   async listDeadlines(): Promise<ServiceResult> {
-    await ensureSeedData();
-
+  
     const exceptions = await prisma.exceptionRequest.findMany({
       where: {
         state: { in: ["approved", "applied"] },
@@ -599,8 +526,7 @@ export const institutionalServerService = {
   },
 
   async getSubmission(submissionId: string): Promise<ServiceResult> {
-    await ensureSeedData();
-    const submission = await prisma.submission.findUnique({
+      const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
         documents: true,
@@ -638,8 +564,7 @@ export const institutionalServerService = {
   },
 
   async listExceptions(filters: { submissionId?: string; state?: ExceptionState | "all" }): Promise<ServiceResult> {
-    await ensureSeedData();
-
+  
     const exceptionRequests = await prisma.exceptionRequest.findMany({
       where: {
         submissionId: filters.submissionId,
