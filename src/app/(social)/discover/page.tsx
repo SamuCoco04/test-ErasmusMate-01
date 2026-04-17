@@ -3,16 +3,50 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { socialProfiles } from "@/lib/mock/social-support";
-import { socialService } from "@/lib/services/social-service";
-import { useSocialStore } from "@/lib/state/social-store";
+import { useBlockUserMutation, useConnectionsQuery, useDiscoverProfilesQuery, useReportEntityMutation, useSendConnectionRequestMutation } from "@/lib/query/social-hooks";
+
+const ACTOR_PROFILE_ID = "ME-STUDENT";
+
+type DiscoverProfile = {
+  id: string;
+  name: string;
+  homeInstitution?: string;
+  destinationCity?: string;
+};
+
+type Connection = {
+  id: string;
+  peerProfileId?: string;
+  requesterProfileId?: string;
+  recipientProfileId?: string;
+  createdAt?: string;
+  initiatedAt?: string;
+  state: string;
+};
+
+function getConnectionTimestamp(connection: Connection): string {
+  return connection.createdAt ?? connection.initiatedAt ?? connection.id;
+}
 
 export default function DiscoverPage() {
-  const connections = useSocialStore((snapshot) => snapshot.connections);
+  const discoverQuery = useDiscoverProfilesQuery(ACTOR_PROFILE_ID);
+  const connectionsQuery = useConnectionsQuery(ACTOR_PROFILE_ID);
+  const requestMutation = useSendConnectionRequestMutation();
+  const blockMutation = useBlockUserMutation();
+  const reportMutation = useReportEntityMutation();
 
-  const discoverableProfiles = socialProfiles.filter(
-    (profile) => profile.consent.discoverabilityConsent && !profile.consent.consentRevokedAt && profile.visibility.profileVisibility === "erasmus_scope",
-  );
+  const discoverableProfiles = (discoverQuery.data as DiscoverProfile[] | undefined) ?? [];
+  const rawConnections = (connectionsQuery.data as Connection[] | undefined) ?? [];
+
+  // Normalize connections: derive peerProfileId from requester/recipient when absent (API shape)
+  const connections = rawConnections.map((connection) => ({
+    ...connection,
+    peerProfileId:
+      connection.peerProfileId
+      ?? (connection.requesterProfileId === ACTOR_PROFILE_ID
+        ? connection.recipientProfileId
+        : connection.requesterProfileId),
+  }));
 
   return (
     <div className="space-y-6">
@@ -25,7 +59,7 @@ export default function DiscoverPage() {
         <CardHeader>
           <CardTitle>Consent and Visibility Rules</CardTitle>
           <CardDescription>
-            Profiles are shown only when discoverability consent is enabled, consent has not been revoked, and visibility is set to Erasmus-scope.
+            Profiles are shown only when discoverability consent is enabled in Erasmus social scope.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
@@ -33,34 +67,27 @@ export default function DiscoverPage() {
             <p className="text-muted-foreground">No discoverable profiles available.</p>
           ) : (
             discoverableProfiles.map((profile) => {
-              const contactable = profile.consent.contactabilityConsent && profile.visibility.directContactExposed;
               const activeConnection = connections
-                  .filter((connection) => connection.peerProfileId === profile.id)
-                  .sort((a, b) => Date.parse(b.initiatedAt) - Date.parse(a.initiatedAt))[0];
-              const canRequestConnection = socialService.canStartConnectionWith(profile.id);
+                .filter((connection) => connection.peerProfileId === profile.id)
+                .sort((a, b) => getConnectionTimestamp(b).localeCompare(getConnectionTimestamp(a)))[0];
 
               return (
                 <div key={profile.id} className="space-y-3 rounded-md border bg-white p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="font-medium text-slate-900">{profile.name}</p>
-                      <p className="text-muted-foreground">{profile.homeInstitution}</p>
+                      <p className="text-muted-foreground">{profile.homeInstitution ?? "Institution not available"}</p>
                     </div>
                     <div className="flex gap-2">
                       <Badge variant="default">Discoverable</Badge>
-                      <Badge variant={contactable ? "default" : "secondary"}>{contactable ? "Contactable" : "Contact locked"}</Badge>
                     </div>
                   </div>
-                  <p className="text-muted-foreground">Destination: {profile.destinationCity}</p>
-                  <p className="text-muted-foreground">Interests: {profile.interests.join(", ")}</p>
+                  <p className="text-muted-foreground">Destination: {profile.destinationCity ?? "Destination not available"}</p>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline">
-                      View profile
-                    </Button>
                     <Button
                       size="sm"
-                      disabled={!contactable || !canRequestConnection}
-                      onClick={() => socialService.sendConnectionRequest(profile.id)}
+                      disabled={requestMutation.isPending || activeConnection?.state === "pending" || activeConnection?.state === "accepted" || activeConnection?.state === "blocked"}
+                      onClick={() => requestMutation.mutate(profile.id)}
                     >
                       {activeConnection?.state === "blocked"
                         ? "Blocked"
@@ -73,11 +100,17 @@ export default function DiscoverPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => socialService.reportEntity({ targetType: "social_profile", targetId: profile.id, reason: "User report from discover page" })}
+                      onClick={() => reportMutation.mutate({ targetType: "social_profile", targetId: profile.id, reason: "User report from discover page" })}
                     >
                       Report
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => socialService.blockUser(profile.id, "Blocked from discover page")}>Block</Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => blockMutation.mutate({ peerId: profile.id, reason: "Blocked from discover page" })}
+                    >
+                      Block
+                    </Button>
                   </div>
                 </div>
               );

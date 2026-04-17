@@ -3,17 +3,68 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { socialService } from "@/lib/services/social-service";
-import { useSocialStore } from "@/lib/state/social-store";
+import { useAcceptConnectionMutation, useBlockUserMutation, useCancelConnectionMutation, useConnectionsQuery, useRejectConnectionMutation, useReportEntityMutation } from "@/lib/query/social-hooks";
+
+const ACTOR_PROFILE_ID = "ME-STUDENT";
+
+type Connection = {
+  id: string;
+  peerProfileId?: string;
+  peerName?: string;
+  state: string;
+  direction?: string;
+  initiatedAt?: string;
+  createdAt?: string;
+  requesterProfileId?: string;
+  recipientProfileId?: string;
+  requester?: { displayName?: string };
+  recipient?: { displayName?: string };
+};
 
 export default function ConnectionsPage() {
-  const connections = useSocialStore((snapshot) => snapshot.connections);
+  const connectionsQuery = useConnectionsQuery(ACTOR_PROFILE_ID);
+  const acceptMutation = useAcceptConnectionMutation();
+  const rejectMutation = useRejectConnectionMutation();
+  const blockMutation = useBlockUserMutation();
+  const reportMutation = useReportEntityMutation();
+  const cancelMutation = useCancelConnectionMutation();
+
+  const connections = ((connectionsQuery.data as Connection[] | undefined) ?? []).map((connection) => {
+    const inferredPeerName =
+      connection.peerName
+      ?? (connection.requesterProfileId === ACTOR_PROFILE_ID ? connection.recipient?.displayName : connection.requester?.displayName)
+      ?? "Peer";
+
+    const inferredDirection =
+      connection.direction
+      ?? (connection.recipientProfileId === ACTOR_PROFILE_ID
+        ? "incoming"
+        : connection.requesterProfileId === ACTOR_PROFILE_ID
+          ? "outgoing"
+          : "outgoing");
+
+    // Derive peerProfileId from requester/recipient if not present (API shape)
+    const peerProfileId =
+      connection.peerProfileId
+      ?? (connection.requesterProfileId === ACTOR_PROFILE_ID
+        ? connection.recipientProfileId
+        : connection.requesterProfileId)
+      ?? "";
+
+    return {
+      ...connection,
+      peerName: inferredPeerName,
+      peerProfileId,
+      direction: inferredDirection,
+      initiatedAt: connection.initiatedAt ?? connection.createdAt ?? undefined,
+    };
+  });
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold">Connections</h1>
-        <p className="text-muted-foreground">All connection lifecycle states are mocked for UI coverage and policy testing.</p>
+        <p className="text-muted-foreground">Connection lifecycle states are API-backed and remain secondary to official procedures.</p>
       </div>
 
       <Card>
@@ -32,22 +83,22 @@ export default function ConnectionsPage() {
               <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-white p-3 text-sm">
                 <div>
                   <p className="font-medium text-slate-900">{connection.peerName}</p>
-                  <p className="text-muted-foreground">Initiated: {connection.initiatedAt}</p>
+                  <p className="text-muted-foreground">Initiated: {connection.initiatedAt ?? "—"}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={canMessage ? "default" : "secondary"}>{connection.state}</Badge>
                   {isIncomingPending && (
                     <>
-                      <Button size="sm" onClick={() => socialService.acceptConnection(connection.id)}>
+                      <Button size="sm" onClick={() => acceptMutation.mutate(connection.id)}>
                         Accept
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => socialService.rejectConnection(connection.id)}>
+                      <Button size="sm" variant="outline" onClick={() => rejectMutation.mutate(connection.id)}>
                         Reject
                       </Button>
                     </>
                   )}
                   {isOutgoingPending && (
-                    <Button size="sm" variant="outline" onClick={() => socialService.cancelConnection(connection.id)}>
+                    <Button size="sm" variant="outline" onClick={() => cancelMutation.mutate(connection.id)}>
                       Cancel request
                     </Button>
                   )}
@@ -59,7 +110,7 @@ export default function ConnectionsPage() {
                     variant="outline"
                     disabled={isRestricted}
                     onClick={() =>
-                      socialService.reportEntity({
+                      reportMutation.mutate({
                         targetType: "social_interaction",
                         targetId: connection.id,
                         reason: "Connection reported from connections page",
@@ -68,7 +119,7 @@ export default function ConnectionsPage() {
                   >
                     Report
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => socialService.blockUser(connection.peerProfileId, "Blocked from connection page")}>
+                  <Button size="sm" variant="outline" onClick={() => blockMutation.mutate({ peerId: connection.peerProfileId, connectionId: connection.id, reason: "Blocked from connection page" })}>
                     Block
                   </Button>
                 </div>

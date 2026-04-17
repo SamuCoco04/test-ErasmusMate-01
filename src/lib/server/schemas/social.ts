@@ -7,7 +7,7 @@ export const connectionRequestSchema = z.object({
 
 export const connectionRespondSchema = z.object({
   actorProfileId: z.string().min(1),
-  action: z.enum(["accepted", "rejected"]),
+  action: z.enum(["accepted", "rejected", "cancelled"]),
 });
 
 export const connectionBlockSchema = z.object({
@@ -67,6 +67,7 @@ export const socialContentListQuerySchema = z.object({
     .enum(["draft_or_editing", "published_visible", "updated_visible", "author_deleted", "hidden_or_restricted", "removed", "all"])
     .optional(),
   authorId: z.string().min(1).optional(),
+  viewerId: z.string().min(1).optional(),
 });
 
 export const socialConnectionListQuerySchema = z.object({
@@ -77,4 +78,22 @@ export const socialConnectionListQuerySchema = z.object({
 export const moderationReportListQuerySchema = z.object({
   targetType: z.enum(["social_profile", "message", "recommendation", "opinion", "social_interaction", "all"]).optional(),
   reporterId: z.string().min(1).optional(),
+});
+
+export const socialDiscoverQuerySchema = z.object({
+  actorProfileId: z.string().min(1),
+});
+
+export const socialMessagesQuerySchema = z.object({
+  profileId: z.string().min(1),
+});
+
+export const socialMapQuerySchema = z.object({
+  destinationCountry: z.string().min(1).optional(),
+  city: z.string().min(1).optional(),
+  category: z.enum(["accommodation", "transport", "bureaucracy", "academics", "daily_living", "all"]).optional(),
+  type: z.enum(["recommendation", "opinion", "all"]).optional(),
+  minRating: z.coerce.number().min(0).max(5).optional(),
+  fromDate: z.string().date().optional(),
+  date: z.string().date().optional(),
 });
