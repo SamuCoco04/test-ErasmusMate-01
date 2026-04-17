@@ -111,17 +111,26 @@ export const institutionalService = {
     );
   },
   async readSubmission(submissionId: string) {
+    if (!INSTITUTIONAL_API_ENABLED) {
+      return select((state) => state.submissions[submissionId]);
+    }
     const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/institutional/submissions/${submissionId}/draft`);
     if (response?.outcome === "success") return response.data;
     return select((state) => state.submissions[submissionId]);
   },
   async readExceptions(submissionId?: string) {
+    const exceptions = select((state) =>
+      submissionId ? state.exceptions.filter((exception) => exception.submissionId === submissionId) : state.exceptions,
+    );
+
+    if (!INSTITUTIONAL_API_ENABLED) {
+      return exceptions;
+    }
+
     const query = submissionId ? `?submissionId=${encodeURIComponent(submissionId)}` : "";
     const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/institutional/exceptions${query}`);
     if (response?.outcome === "success") return response.data;
-    return select((state) =>
-      submissionId ? state.exceptions.filter((exception) => exception.submissionId === submissionId) : state.exceptions,
-    );
+    return exceptions;
   },
   applyApprovedException(exceptionId: string) {
     return institutionalStore.applyApprovedException(exceptionId);

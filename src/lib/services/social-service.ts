@@ -193,6 +193,9 @@ export const socialService = {
     );
   },
   async readConnections(profileId: string) {
+    if (!SOCIAL_API_ENABLED) {
+      return socialStore.getState().connections;
+    }
     const response = await getApi<{ outcome?: string; data?: unknown }>(
       `/api/social/connections/request?profileId=${encodeURIComponent(profileId)}`,
     );
@@ -200,6 +203,9 @@ export const socialService = {
     return socialStore.getState().connections;
   },
   async readContent(filters?: { type?: string; category?: string; state?: string; authorId?: string }) {
+    if (!SOCIAL_API_ENABLED) {
+      return socialContentStore.getState().contentItems;
+    }
     const params = new URLSearchParams();
     if (filters?.type) params.set("type", filters.type);
     if (filters?.category) params.set("category", filters.category);
@@ -212,6 +218,9 @@ export const socialService = {
     return socialContentStore.getState().contentItems;
   },
   async readReports(targetType?: string) {
+    if (!SOCIAL_API_ENABLED) {
+      return socialStore.getState().moderationReports;
+    }
     const query = targetType ? `?targetType=${encodeURIComponent(targetType)}` : "";
     const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/social/reports${query}`);
     if (response?.outcome === "success") return response.data;
