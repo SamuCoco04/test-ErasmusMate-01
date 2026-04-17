@@ -1,11 +1,11 @@
 import { INSTITUTIONAL_API_ENABLED } from "@/lib/config/feature-flags";
 import type { ApiMutationResponse } from "@/lib/server/schemas/http";
-import { postApi } from "@/lib/services/api-client";
+import { getApi, postApi } from "@/lib/services/api-client";
 import { institutionalStore, type InstitutionalStoreState } from "@/lib/state/institutional-store";
 
 const select = <T,>(selector: (state: InstitutionalStoreState) => T) => selector(institutionalStore.getState());
 
-async function runInstitutionalMutationWithFallback(
+async function runInstitutionalMutation(
   apiCall: () => Promise<ApiMutationResponse>,
   fallback: () => ApiMutationResponse,
 ): Promise<ApiMutationResponse> {
@@ -13,28 +13,7 @@ async function runInstitutionalMutationWithFallback(
     return fallback();
   }
 
-  const response = await apiCall();
-  if (response.outcome === "success") {
-    return response;
-  }
-
-  const apiDetails = response.details ?? "No additional details provided.";
-  const fallbackResult = fallback();
-  if (fallbackResult.outcome !== "success") {
-    return {
-      ...fallbackResult,
-      details: `Institutional API failed (${apiDetails}) and fallback was also ${fallbackResult.outcome}: ${fallbackResult.details}`,
-    };
-  }
-  return {
-    ...fallbackResult,
-    details: `Institutional API fallback applied: ${apiDetails}. ${fallbackResult.details}`,
-    data: {
-      fallbackApplied: true,
-      apiDetails,
-      originalData: response.data,
-    },
-  };
+  return apiCall();
 }
 
 export const institutionalService = {
@@ -55,13 +34,13 @@ export const institutionalService = {
     },
   },
   async saveSubmissionDraft(submissionId: string, formPayload: Record<string, unknown>) {
-    return runInstitutionalMutationWithFallback(
+    return runInstitutionalMutation(
       () => postApi(`/api/institutional/submissions/${submissionId}/draft`, { actorId: "student", draftPayload: formPayload }),
       () => institutionalStore.saveSubmissionDraft(submissionId, formPayload),
     );
   },
   async finalSubmit(submissionId: string) {
-    return runInstitutionalMutationWithFallback(
+    return runInstitutionalMutation(
       () => postApi(`/api/institutional/submissions/${submissionId}/submit`),
       () => institutionalStore.finalSubmit(submissionId),
     );
@@ -70,19 +49,19 @@ export const institutionalService = {
     return institutionalStore.startReview(submissionId, coordinatorId);
   },
   async reviewApprove(submissionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutationWithFallback(
+    return runInstitutionalMutation(
       () => postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale }),
       () => institutionalStore.reviewApprove(submissionId, rationale, coordinatorId),
     );
   },
   async reviewReject(submissionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutationWithFallback(
+    return runInstitutionalMutation(
       () => postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale }),
       () => institutionalStore.reviewReject(submissionId, rationale, coordinatorId),
     );
   },
   async reviewReopen(submissionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutationWithFallback(
+    return runInstitutionalMutation(
       () => postApi(`/api/institutional/submissions/${submissionId}/reopen`, { actorId: coordinatorId, rationale }),
       () => institutionalStore.reviewReopen(submissionId, rationale, coordinatorId),
     );
@@ -103,7 +82,7 @@ export const institutionalService = {
     requestedEffect: string;
     coveredTargetId?: string;
   }) {
-    return runInstitutionalMutationWithFallback(
+    return runInstitutionalMutation(
       () =>
         postApi("/api/institutional/exceptions", {
           submissionId,
@@ -120,15 +99,28 @@ export const institutionalService = {
     return institutionalStore.startExceptionReview(exceptionId, coordinatorId);
   },
   async approveException(exceptionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutationWithFallback(
+    return runInstitutionalMutation(
       () => postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale }),
       () => institutionalStore.approveException(exceptionId, rationale, coordinatorId),
     );
   },
   async rejectException(exceptionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutationWithFallback(
+    return runInstitutionalMutation(
       () => postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale }),
       () => institutionalStore.rejectException(exceptionId, rationale, coordinatorId),
+    );
+  },
+  async readSubmission(submissionId: string) {
+    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/institutional/submissions/${submissionId}/draft`);
+    if (response?.outcome === "success") return response.data;
+    return select((state) => state.submissions[submissionId]);
+  },
+  async readExceptions(submissionId?: string) {
+    const query = submissionId ? `?submissionId=${encodeURIComponent(submissionId)}` : "";
+    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/institutional/exceptions${query}`);
+    if (response?.outcome === "success") return response.data;
+    return select((state) =>
+      submissionId ? state.exceptions.filter((exception) => exception.submissionId === submissionId) : state.exceptions,
     );
   },
   applyApprovedException(exceptionId: string) {
