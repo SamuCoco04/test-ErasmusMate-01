@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useInstitutionalStoreSnapshot } from "@/lib/state/institutional-store";
+import { useDeadlinesQuery, useStudentSubmissionsQuery } from "@/lib/query/institutional-hooks";
 
 const statusStyle: Record<string, string> = {
   in_review: "bg-blue-100 text-blue-800 border-blue-200",
@@ -22,12 +22,8 @@ const statusStyle: Record<string, string> = {
 };
 
 export default function StudentDashboardPage() {
-  const snapshot = useInstitutionalStoreSnapshot();
-  const submissions = useMemo(
-    () => Object.values(snapshot.submissions).filter((submission) => submission.stage !== "Coordinator review"),
-    [snapshot.submissions],
-  );
-  const deadlines = snapshot.deadlines;
+  const { data: submissions = [] } = useStudentSubmissionsQuery();
+  const { data: deadlines = [] } = useDeadlinesQuery();
 
   const actionItems = useMemo(
     () => submissions.filter((submission) => ["draft", "submitted", "in_review", "rejected", "reopened"].includes(submission.state)),

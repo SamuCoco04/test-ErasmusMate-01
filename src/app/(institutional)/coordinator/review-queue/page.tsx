@@ -1,21 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useInstitutionalStoreSnapshot } from "@/lib/state/institutional-store";
+import { useCoordinatorQueueQuery } from "@/lib/query/institutional-hooks";
 
 export default function CoordinatorReviewQueuePage() {
-  const snapshot = useInstitutionalStoreSnapshot();
-  const queue = useMemo(
-    () =>
-      Object.values(snapshot.submissions)
-      .filter((item) => ["submitted", "in_review", "resubmitted"].includes(item.state))
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
-    [snapshot.submissions],
-  );
+  const { data: queue = [] } = useCoordinatorQueueQuery();
 
   return (
     <div className="space-y-6">
@@ -36,9 +28,7 @@ export default function CoordinatorReviewQueuePage() {
                 <Badge>{item.state}</Badge>
               </div>
               <p className="text-sm text-muted-foreground">{item.id} · Stage {item.stage} · Due {item.dueDate}</p>
-              <Link href={`/coordinator/review/${item.id}`} className="mt-2 inline-block text-sm text-blue-700 underline underline-offset-2">
-                Open review detail
-              </Link>
+              <Link href={`/coordinator/review/${item.id}`} className="mt-2 inline-block text-sm text-blue-700 underline underline-offset-2">Open review detail</Link>
             </div>
           ))}
           {queue.length === 0 && <p className="text-sm text-muted-foreground">No submissions in submitted/in_review/resubmitted states.</p>}

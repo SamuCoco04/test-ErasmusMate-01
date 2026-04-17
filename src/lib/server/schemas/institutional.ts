@@ -17,6 +17,7 @@ export const exceptionCreateRequestSchema = z.object({
   scope: z.enum(["deadline", "document_obligation", "procedure_condition"]),
   rationale: z.string().min(12),
   requestedEffect: z.string().min(1),
+  coveredTargetId: z.string().min(1).optional(),
 });
 
 export const exceptionDecisionRequestSchema = z.object({
@@ -28,4 +29,8 @@ export const exceptionDecisionRequestSchema = z.object({
 export const exceptionListQuerySchema = z.object({
   submissionId: z.string().min(1).optional(),
   state: z.enum(["submitted", "in_review", "approved", "rejected", "applied", "closed", "all"]).optional(),
+});
+
+export const actorRequestSchema = z.object({
+  actorId: z.string().min(1),
 });

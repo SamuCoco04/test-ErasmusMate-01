@@ -6,14 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { institutionalService } from "@/lib/services/institutional-service";
-import { useInstitutionalStore } from "@/lib/state/institutional-store";
+import { useExceptionDecisionMutation, useExceptionsQuery } from "@/lib/query/institutional-hooks";
 
 const COORDINATOR_ID = "coord-anna-jensen";
 
 export default function CoordinatorExceptionDecisionsPage() {
-  const exceptions = useInstitutionalStore((store) => store.exceptions);
+  const { data: exceptions = [] } = useExceptionsQuery();
   const activeExceptions = exceptions.filter((item) => ["submitted", "in_review", "approved", "applied"].includes(item.state));
+  const mutation = useExceptionDecisionMutation();
   const [decisionRationales, setDecisionRationales] = useState<Record<string, string>>({});
 
   return (
@@ -39,61 +39,16 @@ export default function CoordinatorExceptionDecisionsPage() {
                 <p className="mt-1 text-sm">Rationale: {item.rationale}</p>
 
                 <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
-                  <Input
-                    placeholder="Decision rationale (required)"
-                    value={rationale}
-                    onChange={(event) => {
-                      setDecisionRationales((prev) => ({
-                        ...prev,
-                        [item.id]: event.target.value,
-                      }));
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={item.state !== "submitted"}
-                    onClick={() => institutionalService.startExceptionReview(item.id, COORDINATOR_ID)}
-                  >
-                    Start review
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={!canDecide || (item.state !== "submitted" && item.state !== "in_review")}
-                    onClick={() => institutionalService.approveException(item.id, rationale, COORDINATOR_ID)}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!canDecide || (item.state !== "submitted" && item.state !== "in_review")}
-                    onClick={() => institutionalService.rejectException(item.id, rationale, COORDINATOR_ID)}
-                  >
-                    Reject
-                  </Button>
+                  <Input placeholder="Decision rationale (required)" value={rationale} onChange={(event) => setDecisionRationales((prev) => ({ ...prev, [item.id]: event.target.value }))} />
+                  <Button type="button" variant="outline" disabled={item.state !== "submitted" || mutation.isPending} onClick={() => mutation.mutate({ exceptionId: item.id, rationale, coordinatorId: COORDINATOR_ID, decision: "start" })}>Start review</Button>
+                  <Button type="button" disabled={!canDecide || (item.state !== "submitted" && item.state !== "in_review") || mutation.isPending} onClick={() => mutation.mutate({ exceptionId: item.id, rationale, coordinatorId: COORDINATOR_ID, decision: "approve" })}>Approve</Button>
+                  <Button type="button" variant="outline" disabled={!canDecide || (item.state !== "submitted" && item.state !== "in_review") || mutation.isPending} onClick={() => mutation.mutate({ exceptionId: item.id, rationale, coordinatorId: COORDINATOR_ID, decision: "reject" })}>Reject</Button>
                 </div>
 
                 <div className="mt-2 flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={item.state !== "approved"}
-                    onClick={() => institutionalService.applyApprovedException(item.id)}
-                  >
-                    Apply approved exception
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={item.state !== "applied"}
-                    onClick={() => institutionalService.closeAppliedException(item.id, COORDINATOR_ID)}
-                  >
-                    Close applied exception
-                  </Button>
-                  {rationale.trim().length > 0 && rationale.trim().length < 10 && (
-                    <p className="text-xs text-rose-700">Minimum rationale length is 10 characters.</p>
-                  )}
+                  <Button type="button" variant="outline" disabled={item.state !== "approved" || mutation.isPending} onClick={() => mutation.mutate({ exceptionId: item.id, rationale, coordinatorId: COORDINATOR_ID, decision: "apply" })}>Apply approved exception</Button>
+                  <Button type="button" variant="outline" disabled={item.state !== "applied" || mutation.isPending} onClick={() => mutation.mutate({ exceptionId: item.id, rationale, coordinatorId: COORDINATOR_ID, decision: "close" })}>Close applied exception</Button>
+                  {rationale.trim().length > 0 && rationale.trim().length < 10 && <p className="text-xs text-rose-700">Minimum rationale length is 10 characters.</p>}
                 </div>
               </div>
             );

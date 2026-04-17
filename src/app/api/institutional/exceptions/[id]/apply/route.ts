@@ -15,9 +15,7 @@ const paramsSchema = z.object({ id: z.string().min(1) });
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const parsedParams = paramsSchema.safeParse(params);
-  if (!parsedParams.success) {
-    return invalidParamsResponse();
-  }
+  if (!parsedParams.success) return invalidParamsResponse();
 
   let json: unknown;
   try {
@@ -27,12 +25,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const parsedBody = actorRequestSchema.safeParse(json);
-  if (!parsedBody.success) {
-    return blocked(parseValidationErrors(parsedBody.error.issues), 400);
-  }
+  if (!parsedBody.success) return blocked(parseValidationErrors(parsedBody.error.issues), 400);
 
   try {
-    const result = await institutionalServerService.submit(parsedParams.data.id, parsedBody.data.actorId);
+    const result = await institutionalServerService.applyException(parsedParams.data.id, parsedBody.data.actorId);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

@@ -8,24 +8,10 @@ import {
   parseValidationErrors,
   success,
 } from "@/lib/server/http/response";
-import { submissionDraftRequestSchema } from "@/lib/server/schemas/institutional";
+import { actorRequestSchema } from "@/lib/server/schemas/institutional";
 import { institutionalServerService } from "@/lib/server/services/institutional-service";
 
 const paramsSchema = z.object({ id: z.string().min(1) });
-
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
-  const parsedParams = paramsSchema.safeParse(params);
-  if (!parsedParams.success) {
-    return invalidParamsResponse();
-  }
-
-  try {
-    const result = await institutionalServerService.getSubmission(parsedParams.data.id);
-    return success(result.details, result.data);
-  } catch (error) {
-    return fromUnknownError(error);
-  }
-}
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const parsedParams = paramsSchema.safeParse(params);
@@ -40,13 +26,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return invalidJsonResponse();
   }
 
-  const parsedBody = submissionDraftRequestSchema.safeParse(json);
+  const parsedBody = actorRequestSchema.safeParse(json);
   if (!parsedBody.success) {
     return blocked(parseValidationErrors(parsedBody.error.issues), 400);
   }
 
   try {
-    const result = await institutionalServerService.saveDraft(parsedParams.data.id, parsedBody.data.actorId, parsedBody.data.draftPayload);
+    const result = await institutionalServerService.startReview(parsedParams.data.id, parsedBody.data.actorId);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

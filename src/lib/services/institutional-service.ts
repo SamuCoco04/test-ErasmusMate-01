@@ -1,73 +1,79 @@
-import { INSTITUTIONAL_API_ENABLED } from "@/lib/config/feature-flags";
+import type { ExceptionState, SubmissionState } from "@prisma/client";
+
 import type { ApiMutationResponse } from "@/lib/server/schemas/http";
 import { getApi, postApi } from "@/lib/services/api-client";
-import { institutionalStore, type InstitutionalStoreState } from "@/lib/state/institutional-store";
 
-const select = <T,>(selector: (state: InstitutionalStoreState) => T) => selector(institutionalStore.getState());
+type SubmissionReadModel = {
+  id: string;
+  state: SubmissionState;
+  procedure: string;
+  stage: string;
+  dueDate: string;
+  draftPayload?: Record<string, unknown>;
+  submittedAt?: string | null;
+  decisionRationale?: string | null;
+  exceptionRequests?: Array<{ id: string; state: ExceptionState }>;
+  auditEvents?: Array<{
+    id: string;
+    eventType: string;
+    rationale?: string | null;
+    priorState?: SubmissionState | null;
+    newState?: SubmissionState | null;
+    createdAt: string;
+    actor?: { id: string; name: string };
+  }>;
+};
 
-async function runInstitutionalMutation(
-  apiCall: () => Promise<ApiMutationResponse>,
-  fallback: () => ApiMutationResponse,
-): Promise<ApiMutationResponse> {
-  if (!INSTITUTIONAL_API_ENABLED) {
-    return fallback();
-  }
+type ExceptionReadModel = {
+  id: string;
+  submissionId: string;
+  state: ExceptionState;
+  scope: "deadline" | "document_obligation" | "procedure_condition";
+  rationale: string;
+  requestedEffect: string;
+  coveredTargetId?: string | null;
+  decisionRationale?: string | null;
+  appliedEffectSummary?: string | null;
+};
 
-  return apiCall();
-}
+const readData = async <T>(url: string): Promise<T> => {
+  const response = await getApi<{ outcome?: string; data?: T; details?: string }>(url);
+  if (response?.outcome === "success" && response.data) return response.data;
+  throw new Error(response?.details ?? "Failed to fetch institutional data.");
+};
 
 export const institutionalService = {
-  selectors: {
-    studentSubmissions() {
-      return select((state) =>
-        Object.values(state.submissions)
-          .filter((submission) => submission.stage !== "Coordinator review")
-          .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
-      );
-    },
-    coordinatorQueue() {
-      return select((state) =>
-        Object.values(state.submissions)
-          .filter((submission) => ["submitted", "in_review", "resubmitted"].includes(submission.state))
-          .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
-      );
-    },
+  async listStudentSubmissions() {
+    return readData<SubmissionReadModel[]>("/api/institutional/submissions?role=student");
+  },
+  async listCoordinatorQueue() {
+    return readData<SubmissionReadModel[]>("/api/institutional/submissions?role=coordinator");
+  },
+  async listDeadlines() {
+    return readData<Array<{ id: string; submissionId?: string; obligation: string; officialDueDate: string; effectiveDueDate: string; state: string; overrideBasis: string | null }>>(
+      "/api/institutional/deadlines",
+    );
   },
   async saveSubmissionDraft(submissionId: string, formPayload: Record<string, unknown>) {
-    return runInstitutionalMutation(
-      () => postApi(`/api/institutional/submissions/${submissionId}/draft`, { actorId: "student", draftPayload: formPayload }),
-      () => institutionalStore.saveSubmissionDraft(submissionId, formPayload),
-    );
+    return postApi(`/api/institutional/submissions/${submissionId}/draft`, { actorId: "student", draftPayload: formPayload });
   },
   async finalSubmit(submissionId: string) {
-    return runInstitutionalMutation(
-      () => postApi(`/api/institutional/submissions/${submissionId}/submit`),
-      () => institutionalStore.finalSubmit(submissionId),
-    );
+    return postApi(`/api/institutional/submissions/${submissionId}/submit`, { actorId: "student" });
   },
-  startReview(submissionId: string, coordinatorId: string) {
-    return institutionalStore.startReview(submissionId, coordinatorId);
+  async startReview(submissionId: string, coordinatorId: string): Promise<ApiMutationResponse> {
+    return postApi(`/api/institutional/submissions/${submissionId}/start-review`, { actorId: coordinatorId });
   },
   async reviewApprove(submissionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutation(
-      () => postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale }),
-      () => institutionalStore.reviewApprove(submissionId, rationale, coordinatorId),
-    );
+    return postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale });
   },
   async reviewReject(submissionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutation(
-      () => postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale }),
-      () => institutionalStore.reviewReject(submissionId, rationale, coordinatorId),
-    );
+    return postApi(`/api/institutional/submissions/${submissionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale });
   },
   async reviewReopen(submissionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutation(
-      () => postApi(`/api/institutional/submissions/${submissionId}/reopen`, { actorId: coordinatorId, rationale }),
-      () => institutionalStore.reviewReopen(submissionId, rationale, coordinatorId),
-    );
+    return postApi(`/api/institutional/submissions/${submissionId}/reopen`, { actorId: coordinatorId, rationale });
   },
-  resubmitAfterRejection(submissionId: string, correctedPayload: Record<string, unknown>) {
-    return institutionalStore.resubmitAfterRejection(submissionId, correctedPayload);
+  async resubmitAfterRejection(submissionId: string, correctedPayload: Record<string, unknown>) {
+    return postApi(`/api/institutional/submissions/${submissionId}/resubmit`, { actorId: "student", draftPayload: correctedPayload });
   },
   async createExceptionRequest({
     submissionId,
@@ -82,60 +88,35 @@ export const institutionalService = {
     requestedEffect: string;
     coveredTargetId?: string;
   }) {
-    return runInstitutionalMutation(
-      () =>
-        postApi("/api/institutional/exceptions", {
-          submissionId,
-          requesterId: "student",
-          scope,
-          rationale,
-          requestedEffect,
-          coveredTargetId,
-        }),
-      () => institutionalStore.createExceptionRequest({ submissionId, scope, rationale, requestedEffect, coveredTargetId }),
-    );
+    return postApi("/api/institutional/exceptions", {
+      submissionId,
+      requesterId: "student",
+      scope,
+      rationale,
+      requestedEffect,
+      coveredTargetId,
+    });
   },
-  startExceptionReview(exceptionId: string, coordinatorId: string) {
-    return institutionalStore.startExceptionReview(exceptionId, coordinatorId);
+  async startExceptionReview(exceptionId: string, coordinatorId: string) {
+    return postApi(`/api/institutional/exceptions/${exceptionId}/start-review`, { actorId: coordinatorId });
   },
   async approveException(exceptionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutation(
-      () => postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale }),
-      () => institutionalStore.approveException(exceptionId, rationale, coordinatorId),
-    );
+    return postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "approved", rationale });
   },
   async rejectException(exceptionId: string, rationale: string, coordinatorId: string) {
-    return runInstitutionalMutation(
-      () => postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale }),
-      () => institutionalStore.rejectException(exceptionId, rationale, coordinatorId),
-    );
+    return postApi(`/api/institutional/exceptions/${exceptionId}/decision`, { actorId: coordinatorId, decision: "rejected", rationale });
   },
   async readSubmission(submissionId: string) {
-    if (!INSTITUTIONAL_API_ENABLED) {
-      return select((state) => state.submissions[submissionId]);
-    }
-    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/institutional/submissions/${submissionId}/draft`);
-    if (response?.outcome === "success") return response.data;
-    return select((state) => state.submissions[submissionId]);
+    return readData<SubmissionReadModel>(`/api/institutional/submissions/${submissionId}/draft`);
   },
   async readExceptions(submissionId?: string) {
-    const exceptions = select((state) =>
-      submissionId ? state.exceptions.filter((exception) => exception.submissionId === submissionId) : state.exceptions,
-    );
-
-    if (!INSTITUTIONAL_API_ENABLED) {
-      return exceptions;
-    }
-
     const query = submissionId ? `?submissionId=${encodeURIComponent(submissionId)}` : "";
-    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/institutional/exceptions${query}`);
-    if (response?.outcome === "success") return response.data;
-    return exceptions;
+    return readData<ExceptionReadModel[]>(`/api/institutional/exceptions${query}`);
   },
-  applyApprovedException(exceptionId: string) {
-    return institutionalStore.applyApprovedException(exceptionId);
+  async applyApprovedException(exceptionId: string, actorId: string) {
+    return postApi(`/api/institutional/exceptions/${exceptionId}/apply`, { actorId });
   },
-  closeAppliedException(exceptionId: string, actorId: string) {
-    return institutionalStore.closeAppliedException(exceptionId, actorId);
+  async closeAppliedException(exceptionId: string, actorId: string) {
+    return postApi(`/api/institutional/exceptions/${exceptionId}/close`, { actorId });
   },
 };

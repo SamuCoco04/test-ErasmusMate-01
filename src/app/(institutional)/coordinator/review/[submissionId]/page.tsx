@@ -1,14 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { institutionalService } from "@/lib/services/institutional-service";
-import { useReviewDecisionMutation } from "@/lib/query/institutional-hooks";
-import { useInstitutionalStoreSnapshot } from "@/lib/state/institutional-store";
+import { useReviewDecisionMutation, useStartReviewMutation, useSubmissionQuery } from "@/lib/query/institutional-hooks";
 
 const decisionStyle = {
   approved: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -22,30 +20,24 @@ type Decision = "approved" | "rejected" | "reopened";
 
 export default function CoordinatorReviewDetailPage() {
   const params = useParams<{ submissionId: string }>();
-  const snapshot = useInstitutionalStoreSnapshot();
-  const submissionId = params.submissionId;
-  const submission = snapshot.submissions[submissionId];
-  const docs = useMemo(() => snapshot.requiredDocsBySubmissionId[submissionId] ?? [], [snapshot.requiredDocsBySubmissionId, submissionId]);
-  const auditEvents = useMemo(
-    () => snapshot.auditLog.filter((entry) => entry.submissionId === submissionId),
-    [snapshot.auditLog, submissionId],
-  );
+  const { data: submission } = useSubmissionQuery(params.submissionId);
 
   const [rationale, setRationale] = useState("");
   const [decision, setDecision] = useState<Decision | null>(null);
   const [banner, setBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const mutation = useReviewDecisionMutation(submissionId);
+  const startReviewMutation = useStartReviewMutation(params.submissionId);
+  const mutation = useReviewDecisionMutation(params.submissionId);
 
   const rationaleValid = rationale.trim().length >= 12;
-  const disabledDecision = useMemo(() => !rationaleValid || mutation.isPending || submission?.state !== "in_review", [rationaleValid, mutation.isPending, submission?.state]);
+  const disabledDecision = !rationaleValid || mutation.isPending || submission?.state !== "in_review";
 
   if (!submission) {
-    return <div className="rounded-lg border bg-white p-4">Submission not found in coordinator scope.</div>;
+    return <div className="rounded-lg border bg-white p-4">Loading submission...</div>;
   }
 
   const applyDecision = async (nextDecision: Decision) => {
-    if (!rationaleValid || mutation.isPending) return;
+    if (disabledDecision) return;
 
     const response = await mutation
       .mutateAsync({ decision: nextDecision, rationale: rationale.trim(), coordinatorId: COORDINATOR_ID })
@@ -68,11 +60,7 @@ export default function CoordinatorReviewDetailPage() {
         <p className="text-muted-foreground">{submission.procedure} · {submission.id}</p>
       </div>
 
-      {banner && (
-        <div className={`rounded-md border p-3 text-sm ${banner.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-          {banner.message}
-        </div>
-      )}
+      {banner && <div className={`rounded-md border p-3 text-sm ${banner.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>{banner.message}</div>}
 
       <Card>
         <CardHeader>
@@ -82,30 +70,10 @@ export default function CoordinatorReviewDetailPage() {
         <CardContent className="space-y-2 text-sm">
           <p>Current state: <span className="font-medium">{submission.state}</span></p>
           <p>Due date: {submission.dueDate}</p>
-          <p>Submitted snapshots: {submission.submittedVersions.length}</p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              disabled={submission.state !== "submitted"}
-              onClick={() => {
-                const result = institutionalService.startReview(submission.id, COORDINATOR_ID);
-                setBanner({ type: result.outcome === "success" ? "success" : "error", message: result.details });
-              }}
-            >
-              Start review
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>Validation checklist</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {docs.map((doc) => (
-            <div key={doc.id} className="rounded-md border p-2">
-              {doc.title} · {doc.required ? "required" : "optional"} · {doc.status}
-            </div>
-          ))}
+          <Button variant="outline" disabled={submission.state !== "submitted" || startReviewMutation.isPending} onClick={async () => {
+            const result = await startReviewMutation.mutateAsync(COORDINATOR_ID).catch((error: Error) => ({ outcome: "blocked", details: error.message }));
+            setBanner({ type: result.outcome === "success" ? "success" : "error", message: result.details });
+          }}>Start review</Button>
         </CardContent>
       </Card>
 
@@ -116,13 +84,7 @@ export default function CoordinatorReviewDetailPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <label className="block text-sm font-medium" htmlFor="rationale">Decision rationale</label>
-          <textarea
-            id="rationale"
-            className="min-h-24 w-full rounded-md border bg-white p-2 text-sm"
-            value={rationale}
-            onChange={(e) => setRationale(e.target.value)}
-            placeholder="Document institutional reasoning for student-visible decision."
-          />
+          <textarea id="rationale" className="min-h-24 w-full rounded-md border bg-white p-2 text-sm" value={rationale} onChange={(e) => setRationale(e.target.value)} placeholder="Document institutional reasoning for student-visible decision." />
           {!rationaleValid && <p className="text-sm text-rose-700">Provide at least 12 characters of rationale.</p>}
 
           <div className="flex flex-wrap gap-2">
@@ -138,13 +100,13 @@ export default function CoordinatorReviewDetailPage() {
       <Card>
         <CardHeader><CardTitle>Audit event log</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
-          {auditEvents.length === 0 && <p className="text-muted-foreground">No audit events yet for this submission.</p>}
-          {auditEvents.map((event) => (
+          {(submission.auditEvents ?? []).length === 0 && <p className="text-muted-foreground">No audit events yet for this submission.</p>}
+          {(submission.auditEvents ?? []).map((event) => (
             <div key={event.id} className="rounded-md border bg-white p-2">
-              <p className="font-medium">{event.id} · {event.timestamp}</p>
-              <p className="text-muted-foreground">{event.actorId}</p>
-              <p>{event.action} ({event.outcome})</p>
-              <p className="text-muted-foreground">{event.previousState ?? "-"} → {event.nextState ?? "-"}</p>
+              <p className="font-medium">{new Date(event.createdAt).toLocaleString()}</p>
+              <p className="text-muted-foreground">{event.actor?.name ?? event.actor?.id}</p>
+              <p>{event.eventType}</p>
+              <p className="text-muted-foreground">{event.priorState ?? "-"} → {event.newState ?? "-"}</p>
             </div>
           ))}
         </CardContent>
