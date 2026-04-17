@@ -12,6 +12,14 @@ async function readMutationResponse(response: Response): Promise<ApiMutationResp
   }
 }
 
+async function readJsonResponse<T>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export async function postApi<T extends object>(url: string, body?: T): Promise<ApiMutationResponse> {
   try {
     const response = await fetch(url, {
@@ -35,5 +43,14 @@ export async function patchApi<T extends object>(url: string, body: T): Promise<
     return await readMutationResponse(response);
   } catch {
     return blockedResponse();
+  }
+}
+
+export async function getApi<T>(url: string): Promise<T | null> {
+  try {
+    const response = await fetch(url, { method: "GET" });
+    return readJsonResponse<T>(response);
+  } catch {
+    return null;
   }
 }

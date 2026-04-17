@@ -1,6 +1,6 @@
 import { SOCIAL_API_ENABLED } from "@/lib/config/feature-flags";
 import type { ApiMutationResponse } from "@/lib/server/schemas/http";
-import { patchApi, postApi } from "@/lib/services/api-client";
+import { getApi, patchApi, postApi } from "@/lib/services/api-client";
 import { socialContentStore, type ErasmusRelevantCategory, type SocialContentType } from "@/lib/state/social-content-store";
 import { socialStore, type ReportTargetType } from "@/lib/state/social-store";
 
@@ -42,7 +42,7 @@ const blockedResult = (details: string): ApiMutationResponse => ({
   details,
 });
 
-async function runSocialMutationWithFallback(
+async function runSocialMutation(
   apiCall: () => Promise<ApiMutationResponse>,
   fallback: () => ApiMutationResponse,
 ): Promise<ApiMutationResponse> {
@@ -54,36 +54,13 @@ async function runSocialMutationWithFallback(
     }
   }
 
-  const response = await apiCall();
-  if (response.outcome === "success") {
-    return response;
-  }
-
-  const responseDetails =
-    typeof response.details === "string" && response.details.trim().length > 0
-      ? response.details
-      : "Social API request did not provide additional details";
-
-  try {
-    const fallbackResult = fallback();
-    if (fallbackResult.outcome !== "success") {
-      return blockedResult(
-        `Social API failed (${responseDetails}) and fallback was also blocked: ${fallbackResult.details ?? "no details"}`,
-      );
-    }
-    return successResult(
-      `Social API fallback applied: ${responseDetails}. ${fallbackResult.details}`,
-      fallbackResult.data,
-    );
-  } catch (error) {
-    return blockedResult(error instanceof Error ? error.message : "Fallback mutation failed.");
-  }
+  return apiCall();
 }
 
 export const socialService = {
   // Connection lifecycle
   async sendConnectionRequest(targetProfileId: string) {
-    return runSocialMutationWithFallback(
+    return runSocialMutation(
       () =>
         postApi("/api/social/connections/request", {
         requesterProfileId: socialStore.getState().actorProfileId,
@@ -98,7 +75,7 @@ export const socialService = {
     );
   },
   async acceptConnection(connectionId: string) {
-    return runSocialMutationWithFallback(
+    return runSocialMutation(
       () =>
         postApi(`/api/social/connections/${connectionId}/respond`, {
         actorProfileId: socialStore.getState().actorProfileId,
@@ -111,7 +88,7 @@ export const socialService = {
     );
   },
   async rejectConnection(connectionId: string) {
-    return runSocialMutationWithFallback(
+    return runSocialMutation(
       () =>
         postApi(`/api/social/connections/${connectionId}/respond`, {
         actorProfileId: socialStore.getState().actorProfileId,
@@ -130,7 +107,7 @@ export const socialService = {
     const connectionId = socialStore.getState().connections.find((connection) => connection.peerProfileId === peerId)?.id;
     if (SOCIAL_API_ENABLED && !connectionId) return blockedResult("No connection found for target profile.");
 
-    return runSocialMutationWithFallback(
+    return runSocialMutation(
       () =>
         postApi(`/api/social/connections/${connectionId}/block`, {
           actorProfileId: socialStore.getState().actorProfileId,
@@ -143,7 +120,7 @@ export const socialService = {
     );
   },
   async reportEntity(input: { targetType: ReportTargetType; targetId: string; reason: string }) {
-    return runSocialMutationWithFallback(
+    return runSocialMutation(
       () =>
         postApi("/api/social/reports", {
         reporterId: socialStore.getState().actorProfileId,
@@ -166,7 +143,7 @@ export const socialService = {
 
   // Recommendation/opinion lifecycle
   async createContent(input: CreateSocialContentInput) {
-    return runSocialMutationWithFallback(
+    return runSocialMutation(
       () => postApi("/api/social/content", input),
       () => {
         const data = socialContentStore.createContent(input);
@@ -175,7 +152,7 @@ export const socialService = {
     );
   },
   async editOwnContent(contentId: string, input: EditSocialContentInput) {
-    return runSocialMutationWithFallback(
+    return runSocialMutation(
       () => patchApi(`/api/social/content/${contentId}`, input),
       () => {
         socialContentStore.editOwnContent(contentId, input);
@@ -187,7 +164,7 @@ export const socialService = {
     socialContentStore.deleteOwnContent(contentId, actorId);
   },
   async favorite(contentId: string, userId: string) {
-    return runSocialMutationWithFallback(
+    return runSocialMutation(
       () => postApi(`/api/social/content/${contentId}/favorite`, { userId }),
       () => {
         socialContentStore.addFavorite(contentId, userId);
@@ -201,7 +178,7 @@ export const socialService = {
   async reportContent(contentId: string, reason: string, reporterId?: string) {
     const contentItem = socialContentStore.getState().contentItems.find((item) => item.id === contentId);
     const targetType = contentItem?.type ?? "recommendation";
-    return runSocialMutationWithFallback(
+    return runSocialMutation(
       () =>
         postApi("/api/social/reports", {
         reporterId: reporterId ?? socialStore.getState().actorProfileId,
@@ -214,5 +191,39 @@ export const socialService = {
         return successResult("Social content report stored in mock content store.");
       },
     );
+  },
+  async readConnections(profileId: string) {
+    if (!SOCIAL_API_ENABLED) {
+      return socialStore.getState().connections;
+    }
+    const response = await getApi<{ outcome?: string; data?: unknown }>(
+      `/api/social/connections/request?profileId=${encodeURIComponent(profileId)}`,
+    );
+    if (response?.outcome === "success") return response.data;
+    return socialStore.getState().connections;
+  },
+  async readContent(filters?: { type?: string; category?: string; state?: string; authorId?: string }) {
+    if (!SOCIAL_API_ENABLED) {
+      return socialContentStore.getState().contentItems;
+    }
+    const params = new URLSearchParams();
+    if (filters?.type) params.set("type", filters.type);
+    if (filters?.category) params.set("category", filters.category);
+    if (filters?.state) params.set("state", filters.state);
+    if (filters?.authorId) params.set("authorId", filters.authorId);
+
+    const query = params.toString();
+    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/social/content${query ? `?${query}` : ""}`);
+    if (response?.outcome === "success") return response.data;
+    return socialContentStore.getState().contentItems;
+  },
+  async readReports(targetType?: string) {
+    if (!SOCIAL_API_ENABLED) {
+      return socialStore.getState().moderationReports;
+    }
+    const query = targetType ? `?targetType=${encodeURIComponent(targetType)}` : "";
+    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/social/reports${query}`);
+    if (response?.outcome === "success") return response.data;
+    return socialStore.getState().moderationReports;
   },
 };
