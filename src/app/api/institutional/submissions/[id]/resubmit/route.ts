@@ -13,20 +13,6 @@ import { institutionalServerService } from "@/lib/server/services/institutional-
 
 const paramsSchema = z.object({ id: z.string().min(1) });
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
-  const parsedParams = paramsSchema.safeParse(params);
-  if (!parsedParams.success) {
-    return invalidParamsResponse();
-  }
-
-  try {
-    const result = await institutionalServerService.getSubmission(parsedParams.data.id);
-    return success(result.details, result.data);
-  } catch (error) {
-    return fromUnknownError(error);
-  }
-}
-
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const parsedParams = paramsSchema.safeParse(params);
   if (!parsedParams.success) {
@@ -46,7 +32,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   try {
-    const result = await institutionalServerService.saveDraft(parsedParams.data.id, parsedBody.data.actorId, parsedBody.data.draftPayload);
+    const result = await institutionalServerService.resubmit(parsedParams.data.id, parsedBody.data.actorId, parsedBody.data.draftPayload);
     return success(result.details, result.data);
   } catch (error) {
     return fromUnknownError(error);

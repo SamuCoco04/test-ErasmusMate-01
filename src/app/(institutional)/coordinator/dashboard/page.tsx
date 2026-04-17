@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useInstitutionalStoreSnapshot } from "@/lib/state/institutional-store";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCoordinatorQueueQuery, useExceptionsQuery } from "@/lib/query/institutional-hooks";
 
 const priorityStyle: Record<string, string> = {
   submitted: "bg-sky-100 text-sky-800 border-sky-200",
@@ -14,19 +13,10 @@ const priorityStyle: Record<string, string> = {
 };
 
 export default function CoordinatorDashboardPage() {
-  const snapshot = useInstitutionalStoreSnapshot();
-  const submissions = useMemo(() => Object.values(snapshot.submissions), [snapshot.submissions]);
-  const queue = useMemo(
-    () => submissions.filter((item) => ["submitted", "in_review", "resubmitted"].includes(item.state)),
-    [submissions],
-  );
-  const exceptions = snapshot.exceptions;
-  const pendingExceptions = useMemo(
-    () => exceptions.filter((item) => ["submitted", "in_review", "approved"].includes(item.state)),
-    [exceptions],
-  );
-  const approvedCount = useMemo(() => submissions.filter((item) => item.state === "approved").length, [submissions]);
-  const rejectedCount = useMemo(() => submissions.filter((item) => item.state === "rejected").length, [submissions]);
+  const { data: queue = [] } = useCoordinatorQueueQuery();
+  const { data: exceptions = [] } = useExceptionsQuery();
+
+  const pendingExceptions = exceptions.filter((item) => ["submitted", "in_review", "approved"].includes(item.state));
 
   return (
     <div className="space-y-6">
@@ -38,8 +28,6 @@ export default function CoordinatorDashboardPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card><CardHeader><CardTitle>{queue.length}</CardTitle><CardDescription>Review queue</CardDescription></CardHeader></Card>
         <Card><CardHeader><CardTitle>{pendingExceptions.length}</CardTitle><CardDescription>Exception decisions</CardDescription></CardHeader></Card>
-        <Card><CardHeader><CardTitle>{approvedCount}</CardTitle><CardDescription>Approved submissions</CardDescription></CardHeader></Card>
-        <Card><CardHeader><CardTitle>{rejectedCount}</CardTitle><CardDescription>Rejected submissions</CardDescription></CardHeader></Card>
       </div>
 
       <Card>
@@ -47,7 +35,7 @@ export default function CoordinatorDashboardPage() {
           <CardTitle>Priority review queue</CardTitle>
           <CardDescription>Only transition-eligible records are shown.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <div className="space-y-3 p-6 pt-0">
           {queue.map((item) => (
             <div key={item.id} className="flex items-center justify-between rounded-lg border bg-white p-3">
               <div>
@@ -60,7 +48,7 @@ export default function CoordinatorDashboardPage() {
               </div>
             </div>
           ))}
-        </CardContent>
+        </div>
       </Card>
     </div>
   );

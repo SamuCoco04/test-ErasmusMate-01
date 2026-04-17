@@ -149,6 +149,8 @@ model SubmissionAuditEvent {
   actorId      String
   eventType    String
   rationale    String?
+  priorState   SubmissionState?
+  newState     SubmissionState?
   createdAt    DateTime   @default(now())
   submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   actor        User       @relation(fields: [actorId], references: [id], onDelete: Cascade)
@@ -162,6 +164,7 @@ model ExceptionRequest {
   scope                String
   rationale            String
   requestedEffect      String
+  coveredTargetId      String?
   decisionRationale    String?
   appliedEffectSummary String?
   decidedAt            DateTime?
