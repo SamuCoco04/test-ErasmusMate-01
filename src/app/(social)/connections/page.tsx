@@ -89,16 +89,16 @@ export default function ConnectionsPage() {
                   <Badge variant={canMessage ? "default" : "secondary"}>{connection.state}</Badge>
                   {isIncomingPending && (
                     <>
-                      <Button size="sm" onClick={() => acceptMutation.mutate(connection.id)}>
+                      <Button size="sm" onClick={() => acceptMutation.mutate({ connectionId: connection.id, actorProfileId: ACTOR_PROFILE_ID })}>
                         Accept
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => rejectMutation.mutate(connection.id)}>
+                      <Button size="sm" variant="outline" onClick={() => rejectMutation.mutate({ connectionId: connection.id, actorProfileId: ACTOR_PROFILE_ID })}>
                         Reject
                       </Button>
                     </>
                   )}
                   {isOutgoingPending && (
-                    <Button size="sm" variant="outline" onClick={() => cancelMutation.mutate(connection.id)}>
+                    <Button size="sm" variant="outline" onClick={() => cancelMutation.mutate({ connectionId: connection.id, actorProfileId: ACTOR_PROFILE_ID })}>
                       Cancel request
                     </Button>
                   )}
@@ -111,6 +111,7 @@ export default function ConnectionsPage() {
                     disabled={isRestricted}
                     onClick={() =>
                       reportMutation.mutate({
+                        reporterProfileId: ACTOR_PROFILE_ID,
                         targetType: "social_interaction",
                         targetId: connection.id,
                         reason: "Connection reported from connections page",
@@ -119,7 +120,7 @@ export default function ConnectionsPage() {
                   >
                     Report
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => blockMutation.mutate({ peerId: connection.peerProfileId, connectionId: connection.id, reason: "Blocked from connection page" })}>
+                  <Button size="sm" variant="outline" onClick={() => blockMutation.mutate({ connectionId: connection.id, actorProfileId: ACTOR_PROFILE_ID, reason: "Blocked from connection page" })}>
                     Block
                   </Button>
                 </div>

@@ -70,14 +70,14 @@ export default function MessagesPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => reportMutation.mutate({ targetType: "message", targetId: thread.id, reason: "Message thread reported" })}
+                    onClick={() => reportMutation.mutate({ reporterProfileId: ACTOR_PROFILE_ID, targetType: "message", targetId: thread.id, reason: "Message thread reported" })}
                   >
                     Report
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => blockMutation.mutate({ peerId: thread.withProfileId, reason: `Blocked from message thread ${thread.id}` })}
+                    onClick={() => blockMutation.mutate({ connectionId: thread.id, actorProfileId: ACTOR_PROFILE_ID, reason: `Blocked from message thread ${thread.id}` })}
                   >
                     Block
                   </Button>
