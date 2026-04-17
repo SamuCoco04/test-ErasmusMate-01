@@ -54,3 +54,12 @@ export async function getApi<T>(url: string): Promise<T | null> {
     return null;
   }
 }
+
+export async function deleteApi(url: string): Promise<ApiMutationResponse> {
+  try {
+    const response = await fetch(url, { method: "DELETE" });
+    return await readMutationResponse(response);
+  } catch {
+    return blockedResponse();
+  }
+}

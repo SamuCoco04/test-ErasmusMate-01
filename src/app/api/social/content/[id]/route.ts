@@ -54,3 +54,23 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return fromUnknownError(error);
   }
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const parsedParams = paramsSchema.safeParse(params);
+  if (!parsedParams.success) {
+    return invalidParamsResponse();
+  }
+
+  const query = Object.fromEntries(new URL(request.url).searchParams.entries());
+  const actorId = typeof query.actorId === "string" ? query.actorId : "";
+  if (!actorId) {
+    return blocked("actorId query parameter is required.", 400);
+  }
+
+  try {
+    const result = await socialServerService.deleteContent(parsedParams.data.id, actorId);
+    return success(result.details, result.data);
+  } catch (error) {
+    return fromUnknownError(error);
+  }
+}

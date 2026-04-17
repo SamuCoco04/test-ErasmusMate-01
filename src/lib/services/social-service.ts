@@ -1,8 +1,10 @@
 import { SOCIAL_API_ENABLED } from "@/lib/config/feature-flags";
 import type { ApiMutationResponse } from "@/lib/server/schemas/http";
-import { getApi, patchApi, postApi } from "@/lib/services/api-client";
+import { deleteApi, getApi, patchApi, postApi } from "@/lib/services/api-client";
 import { socialContentStore, type ErasmusRelevantCategory, type SocialContentType } from "@/lib/state/social-content-store";
 import { socialStore, type ReportTargetType } from "@/lib/state/social-store";
+import { mapLinkedRecommendationsFixture } from "@/lib/mock/social/map";
+import { socialProfiles } from "@/lib/mock/social-support";
 
 type CreateSocialContentInput = {
   type: SocialContentType;
@@ -101,7 +103,17 @@ export const socialService = {
     );
   },
   cancelConnection(connectionId: string) {
-    socialStore.cancelConnection(connectionId);
+    return runSocialMutation(
+      () =>
+        postApi(`/api/social/connections/${connectionId}/respond`, {
+          actorProfileId: socialStore.getState().actorProfileId,
+          action: "cancelled",
+        }),
+      () => {
+        socialStore.cancelConnection(connectionId);
+        return successResult("Connection request canceled in mock social state.");
+      },
+    );
   },
   async blockUser(peerId: string, reason: string) {
     const connectionId = socialStore.getState().connections.find((connection) => connection.peerProfileId === peerId)?.id;
@@ -160,8 +172,14 @@ export const socialService = {
       },
     );
   },
-  deleteOwnContent(contentId: string, actorId: string) {
-    socialContentStore.deleteOwnContent(contentId, actorId);
+  async deleteOwnContent(contentId: string, actorId: string) {
+    return runSocialMutation(
+      () => deleteApi(`/api/social/content/${contentId}?actorId=${encodeURIComponent(actorId)}`),
+      () => {
+        socialContentStore.deleteOwnContent(contentId, actorId);
+        return successResult("Social content deleted in mock content store.");
+      },
+    );
   },
   async favorite(contentId: string, userId: string) {
     return runSocialMutation(
@@ -172,8 +190,14 @@ export const socialService = {
       },
     );
   },
-  unfavorite(contentId: string, userId: string) {
-    socialContentStore.removeFavorite(contentId, userId);
+  async unfavorite(contentId: string, userId: string) {
+    return runSocialMutation(
+      () => deleteApi(`/api/social/content/${contentId}/favorite?userId=${encodeURIComponent(userId)}`),
+      () => {
+        socialContentStore.removeFavorite(contentId, userId);
+        return successResult("Favorite removed in mock content store.");
+      },
+    );
   },
   async reportContent(contentId: string, reason: string, reporterId?: string) {
     const contentItem = socialContentStore.getState().contentItems.find((item) => item.id === contentId);
@@ -202,6 +226,26 @@ export const socialService = {
     if (response?.outcome === "success") return response.data;
     return socialStore.getState().connections;
   },
+  async readDiscover(actorProfileId: string) {
+    if (!SOCIAL_API_ENABLED) {
+      return socialProfiles.filter((profile) => profile.id !== actorProfileId && profile.consent.discoverabilityConsent);
+    }
+    const response = await getApi<{ outcome?: string; data?: unknown }>(
+      `/api/social/discover?actorProfileId=${encodeURIComponent(actorProfileId)}`,
+    );
+    if (response?.outcome === "success") return response.data;
+    return [];
+  },
+  async readMessages(profileId: string) {
+    if (!SOCIAL_API_ENABLED) {
+      return socialStore.getState().threads;
+    }
+    const response = await getApi<{ outcome?: string; data?: unknown }>(
+      `/api/social/messages?profileId=${encodeURIComponent(profileId)}`,
+    );
+    if (response?.outcome === "success") return response.data;
+    return socialStore.getState().threads;
+  },
   async readContent(filters?: { type?: string; category?: string; state?: string; authorId?: string }) {
     if (!SOCIAL_API_ENABLED) {
       return socialContentStore.getState().contentItems;
@@ -225,5 +269,31 @@ export const socialService = {
     const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/social/reports${query}`);
     if (response?.outcome === "success") return response.data;
     return socialStore.getState().moderationReports;
+  },
+  async readMap(filters?: {
+    destinationCountry?: string;
+    city?: string;
+    category?: string;
+    type?: string;
+    minRating?: number;
+    fromDate?: string;
+    date?: string;
+  }) {
+    if (!SOCIAL_API_ENABLED) {
+      return mapLinkedRecommendationsFixture;
+    }
+    const params = new URLSearchParams();
+    if (filters?.destinationCountry) params.set("destinationCountry", filters.destinationCountry);
+    if (filters?.city) params.set("city", filters.city);
+    if (filters?.category) params.set("category", filters.category);
+    if (filters?.type) params.set("type", filters.type);
+    if (typeof filters?.minRating === "number") params.set("minRating", String(filters.minRating));
+    if (filters?.fromDate) params.set("fromDate", filters.fromDate);
+    if (filters?.date) params.set("date", filters.date);
+
+    const query = params.toString();
+    const response = await getApi<{ outcome?: string; data?: unknown }>(`/api/social/map${query ? `?${query}` : ""}`);
+    if (response?.outcome === "success") return response.data;
+    return mapLinkedRecommendationsFixture;
   },
 };

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { mapLinkedRecommendationsFixture } from "@/lib/mock/social/map";
+import { useMapQuery } from "@/lib/query/social-hooks";
 import type { MapLinkedOpinion, SocialMapCategory } from "@/types/social";
 
 const SELECT_CLASS = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -36,33 +36,14 @@ export function MapExplorerLeaflet() {
   const [contentType, setContentType] = useState<MapContentTypeFilter>("all");
   const [fromDate, setFromDate] = useState("2026-03-01");
   const [selectedDate, setSelectedDate] = useState("");
-  const [selectedPinId, setSelectedPinId] = useState<string | null>(mapLinkedRecommendationsFixture[0]?.id ?? null);
+  const mapQuery = useMapQuery({ destinationCountry: destination, city, category, type: contentType, minRating, fromDate, date: selectedDate || undefined });
+  const mapPins = useMemo(() => ((mapQuery.data as MapLinkedOpinion[] | undefined) ?? []), [mapQuery.data]);
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
 
   const filteredPins = useMemo(
     () =>
-      mapLinkedRecommendationsFixture.filter((pin) => {
-        const matchesDestination = !destination
-          || pin.destinationCountry.toLowerCase().includes(destination.toLowerCase());
-        const matchesCity = !city || pin.city.toLowerCase().includes(city.toLowerCase());
-        const matchesCategory = category === "all" || pin.category === category;
-        const matchesRating = pin.rating >= minRating;
-        const matchesContentType = contentType === "all" || pin.contentType === contentType;
-        const matchesDateFrom = pin.date >= fromDate;
-        const matchesSpecificDate = !selectedDate || pin.date === selectedDate;
-        const moderationEligible = pin.state === "published";
-
-        return (
-          matchesDestination
-          && matchesCity
-          && matchesCategory
-          && matchesRating
-          && matchesContentType
-          && matchesDateFrom
-          && matchesSpecificDate
-          && moderationEligible
-        );
-      }),
-    [category, city, contentType, destination, fromDate, minRating, selectedDate],
+      mapPins.filter((pin) => pin.state === "published"),
+    [mapPins],
   );
 
   const selectedPin = filteredPins.find((pin) => pin.id === selectedPinId) ?? filteredPins[0] ?? null;

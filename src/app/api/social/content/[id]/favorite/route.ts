@@ -39,3 +39,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return fromUnknownError(error);
   }
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const parsedParams = paramsSchema.safeParse(params);
+  if (!parsedParams.success) {
+    return invalidParamsResponse();
+  }
+
+  const query = Object.fromEntries(new URL(request.url).searchParams.entries());
+  const userId = typeof query.userId === "string" ? query.userId : "";
+  if (!userId) {
+    return blocked("userId query parameter is required.", 400);
+  }
+
+  try {
+    const result = await socialServerService.unfavorite(parsedParams.data.id, userId);
+    return success(result.details, result.data);
+  } catch (error) {
+    return fromUnknownError(error);
+  }
+}

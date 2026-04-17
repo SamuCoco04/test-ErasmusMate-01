@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { socialService } from "@/lib/services/social-service";
 import { type ReportTargetType } from "@/lib/state/social-store";
@@ -67,5 +68,51 @@ export function useReportEntityMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social", "moderation"] });
     },
+  });
+}
+
+export function useDiscoverProfilesQuery(actorProfileId: string) {
+  return useQuery({
+    queryKey: ["social", "discover", actorProfileId],
+    queryFn: () => socialService.readDiscover(actorProfileId),
+    enabled: Boolean(actorProfileId),
+  });
+}
+
+export function useConnectionsQuery(profileId: string) {
+  return useQuery({
+    queryKey: ["social", "connections", profileId],
+    queryFn: () => socialService.readConnections(profileId),
+    enabled: Boolean(profileId),
+  });
+}
+
+export function useMessagesQuery(profileId: string) {
+  return useQuery({
+    queryKey: ["social", "messages", profileId],
+    queryFn: () => socialService.readMessages(profileId),
+    enabled: Boolean(profileId),
+  });
+}
+
+export function useContentQuery(filters?: { type?: string; category?: string; state?: string; authorId?: string }) {
+  return useQuery({
+    queryKey: ["social", "content", filters ?? {}],
+    queryFn: () => socialService.readContent(filters),
+  });
+}
+
+export function useMapQuery(filters?: {
+  destinationCountry?: string;
+  city?: string;
+  category?: string;
+  type?: string;
+  minRating?: number;
+  fromDate?: string;
+  date?: string;
+}) {
+  return useQuery({
+    queryKey: ["social", "map", filters ?? {}],
+    queryFn: () => socialService.readMap(filters),
   });
 }
